@@ -1,0 +1,6 @@
+{
+  "name": "Gusto",
+  "description": "Plateforme gourmande Gusto : recherche de restaurants géolocalisés avec menus digitaux, gestion des catégories, analyse des macronutriments et filtres allergènes.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

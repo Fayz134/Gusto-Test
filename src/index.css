@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    --font-serif: 'Playfair Display', Georgia, serif;
+    --font-cinzel: 'Cinzel', serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  body {
+    font-family: var(--font-sans);
+  }
+}
+
+.font-serif {
+  font-family: 'Playfair Display', Georgia, serif;
+}
+
+.font-cinzel {
+  font-family: 'Cinzel', serif;
+}
+
+.font-mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.paper-texture {
+  background-color: #f8f5f0;
+  background-image: radial-gradient(#e5dcce 0.75px, transparent 0.75px), radial-gradient(#e5dcce 0.75px, #f8f5f0 0.75px);
+  background-size: 30px 30px;
+  background-position: 0 0, 15px 15px;
+}
+
+.bg-italian-ribbon {
+  background: linear-gradient(90deg, #1e4e2b 0%, #1e4e2b 33.3%, #ffffff 33.3%, #ffffff 66.6%, #99281a 66.6%, #99281a 100%);
+}
+
+.dotted-leader {
+  background-image: radial-gradient(circle, #b8aea2 1.2px, transparent 1.2px);
+  background-size: 8px 100%;
+  background-repeat: repeat-x;
+  background-position: bottom 6px center;
+}
