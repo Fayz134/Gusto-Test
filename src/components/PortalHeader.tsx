@@ -46,9 +46,9 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
           </div>
         </div>
 
-        {/* Controls: GPS + Lang */}
+        {/* Controls: Location + Lang */}
         <div className="flex items-center gap-1.5 sm:gap-2.5">
-          {/* GPS Location Pill */}
+          {/* City Location Pill */}
           <button
             onClick={onRequestGeolocation}
             className={`px-2.5 sm:px-3 py-1.5 rounded-full border text-[11px] sm:text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs hover:scale-105 active:scale-95 cursor-pointer max-w-[150px] sm:max-w-none truncate ${
@@ -56,7 +56,7 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
                 ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
                 : 'bg-stone-100 hover:bg-stone-200 border-stone-300 text-stone-700'
             }`}
-            title={userCoords.active ? userCoords.label : t('locateMe')}
+            title={userCoords.active ? `Ville : ${userCoords.label}` : t('locateMe')}
           >
             <MapPin
               className={`w-3.5 h-3.5 shrink-0 ${
@@ -65,13 +65,13 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
                   : 'text-stone-500'
               }`}
             />
-            <span className="truncate">
+            <span className="truncate font-medium">
               {userCoords.active ? (
-                <span className="truncate">{userCoords.label}</span>
+                <span className="truncate font-bold">{userCoords.label}</span>
               ) : (
                 <>
                   <span className="hidden sm:inline">{t('locateMe')}</span>
-                  <span className="sm:hidden">GPS</span>
+                  <span className="sm:hidden">{userCoords.label || 'Aubagne'}</span>
                 </>
               )}
             </span>
@@ -96,19 +96,20 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
           {onOpenAdminModal && (
             <button
               onClick={onOpenAdminModal}
-              className={`px-3 py-1.5 rounded-full text-[11px] sm:text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer active:scale-95 ${
+              className={`p-1.5 sm:px-3 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer active:scale-95 shrink-0 ${
                 isAdmin
                   ? 'bg-[#99281a] text-white hover:bg-[#781524]'
                   : 'bg-[#781524] text-white hover:bg-[#99281a] border border-amber-400/40'
               }`}
-              title="Accéder à l'Espace Privé (Gestion de la carte)"
+              title={isAdmin ? 'Gérer la carte' : "Accéder à l'Espace Privé"}
+              aria-label={isAdmin ? 'Gérer la carte' : 'Espace Privé'}
             >
               {isAdmin ? (
-                <SlidersHorizontal className="w-3.5 h-3.5" />
+                <SlidersHorizontal className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
               ) : (
-                <KeyRound className="w-3.5 h-3.5 text-amber-300" />
+                <KeyRound className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-amber-300" />
               )}
-              <span className="font-bold">
+              <span className="hidden sm:inline font-bold">
                 {isAdmin ? 'Gérer carte' : 'Espace Privé'}
               </span>
             </button>

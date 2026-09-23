@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Trash2, Plus, Minus, ShoppingBag, Calculator, ChevronRight } from 'lucide-react';
+import { X, Trash2, Plus, Minus, ShoppingBag, ChevronRight } from 'lucide-react';
 import { Dish, Language } from '../types';
 import { I18N_DICT } from '../data/i18n';
 import { formatPrice } from '../utils/geo';
@@ -16,7 +16,7 @@ interface OrderSummaryModalProps {
   onClose: () => void;
   onUpdateQuantity: (dishId: string, delta: number) => void;
   onClearOrder: () => void;
-  onOpenBillSplitter: () => void;
+  onOpenBillSplitter?: () => void;
 }
 
 export const OrderSummaryModal: React.FC<OrderSummaryModalProps> = ({
@@ -169,14 +169,10 @@ export const OrderSummaryModal: React.FC<OrderSummaryModalProps> = ({
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  onClose();
-                  onOpenBillSplitter();
-                }}
+                onClick={onClose}
                 className="flex-1 py-3 px-4 rounded-2xl bg-[#8a3311] hover:bg-[#71290d] text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm transition cursor-pointer"
               >
-                <Calculator className="w-4 h-4" />
-                <span>Partager l'addition ({formatPrice(totalAmount)})</span>
+                <span>Continuer la sélection</span>
               </button>
 
               <button

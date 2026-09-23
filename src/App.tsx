@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Restaurant, Language, MacroFilterType, Dish, MenuCategory } from './types';
 import { INITIAL_RESTAURANTS_DATA } from './data/restaurants';
 import { I18N_DICT } from './data/i18n';
-import { calcDistanceKm } from './utils/geo';
+import { calcDistanceKm, getCityNameFromCoords } from './utils/geo';
 import { PortalHeader } from './components/PortalHeader';
 import { HeroSearch } from './components/HeroSearch';
 import { RestaurantCard } from './components/RestaurantCard';
@@ -10,7 +10,6 @@ import { GlobalDishResults } from './components/GlobalDishResults';
 import { RestaurantView } from './components/RestaurantView';
 import { DishDetailModal } from './components/DishDetailModal';
 import { QrTableModal } from './components/QrTableModal';
-import { BillSplitterModal } from './components/BillSplitterModal';
 import { AllergenFilterModal } from './components/AllergenFilterModal';
 import { AdminPortalModal } from './components/AdminPortalModal';
 import { OrderSummaryModal, OrderCartItem } from './components/OrderSummaryModal';
@@ -72,14 +71,13 @@ export default function App() {
     lat: 43.2925,
     lng: 5.5708,
     active: false,
-    label: 'Aubagne (13400)',
+    label: 'Aubagne',
   });
 
   // Modals
   const [selectedDish, setSelectedDish] = useState<Dish | null>(null);
   const [isDishModalOpen, setIsDishModalOpen] = useState(false);
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
-  const [isBillModalOpen, setIsBillModalOpen] = useState(false);
   const [isAllergenModalOpen, setIsAllergenModalOpen] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
 
@@ -137,15 +135,20 @@ export default function App() {
   // Request Geolocation
   const handleRequestGeolocation = () => {
     if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      showToast('Recherche de votre ville...');
       navigator.geolocation.getCurrentPosition(
-        (pos) => {
+        async (pos) => {
           const lat = pos.coords.latitude;
           const lng = pos.coords.longitude;
+
+          // Determine city name from coordinates
+          const cityName = await getCityNameFromCoords(lat, lng);
+
           setUserCoords({
             lat,
             lng,
             active: true,
-            label: `GPS (${lat.toFixed(2)}, ${lng.toFixed(2)})`,
+            label: cityName,
           });
 
           // Recalculate distances
@@ -157,7 +160,7 @@ export default function App() {
               }))
               .sort((a, b) => (a.distance || 0) - (b.distance || 0))
           );
-          showToast('Position GPS détectée avec succès !');
+          showToast(`Ville détectée : ${cityName} 📍`);
         },
         () => {
           // Fallback
@@ -165,7 +168,7 @@ export default function App() {
             lat: 43.2925,
             lng: 5.5708,
             active: true,
-            label: 'Aubagne Centre (Défaut)',
+            label: 'Aubagne',
           });
           setRestaurants((prev) =>
             prev
@@ -175,9 +178,12 @@ export default function App() {
               }))
               .sort((a, b) => (a.distance || 0) - (b.distance || 0))
           );
-          showToast('Localisation centrée sur Aubagne.');
-        }
+          showToast('Ville : Aubagne (par défaut)');
+        },
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
       );
+    } else {
+      showToast('Géolocalisation non supportée par votre navigateur');
     }
   };
 
@@ -700,7 +706,6 @@ export default function App() {
           onBackToPortal={handleBackToPortal}
           onOpenDishDetail={(d) => handleOpenDishDetail(d, activeRestaurant)}
           onOpenQrModal={() => setIsQrModalOpen(true)}
-          onOpenBillModal={() => setIsBillModalOpen(true)}
           onOpenAllergenModal={() => setIsAllergenModalOpen(true)}
           onOpenAdminModal={() => setIsAdminModalOpen(true)}
           selectedAllergens={selectedAllergensFilter}
@@ -741,10 +746,6 @@ export default function App() {
         onClose={() => setIsOrderModalOpen(false)}
         onUpdateQuantity={handleUpdateOrderQuantity}
         onClearOrder={handleClearOrder}
-        onOpenBillSplitter={() => {
-          setIsOrderModalOpen(false);
-          setIsBillModalOpen(true);
-        }}
       />
 
       <QrTableModal
@@ -753,13 +754,6 @@ export default function App() {
         currentLang={currentLang}
         onClose={() => setIsQrModalOpen(false)}
         onShowToast={showToast}
-      />
-
-      <BillSplitterModal
-        isOpen={isBillModalOpen}
-        currentLang={currentLang}
-        onClose={() => setIsBillModalOpen(false)}
-        initialAmount={totalOrderAmount > 0 ? totalOrderAmount : 68}
       />
 
       <AllergenFilterModal

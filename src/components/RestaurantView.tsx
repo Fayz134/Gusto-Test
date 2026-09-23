@@ -5,7 +5,6 @@ import {
   LayoutGrid,
   BookOpen,
   QrCode,
-  Calculator,
   ShieldAlert,
   KeyRound,
   PlusCircle,
@@ -43,7 +42,7 @@ interface RestaurantViewProps {
   onBackToPortal: () => void;
   onOpenDishDetail: (dish: Dish) => void;
   onOpenQrModal: () => void;
-  onOpenBillModal: () => void;
+  onOpenBillModal?: () => void;
   onOpenAllergenModal: () => void;
   onOpenAdminModal: () => void;
   selectedAllergens: string[];
@@ -430,18 +429,6 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                   </button>
                 )}
 
-                {/* Bill Calculator */}
-                <button
-                  onClick={onOpenBillModal}
-                  title={t('billModalTitle')}
-                  className="p-1.5 rounded-full bg-white hover:bg-stone-100 border border-stone-300 text-stone-700 transition shadow-xs flex items-center gap-1 px-2.5 cursor-pointer"
-                >
-                  <Calculator className="w-3.5 h-3.5 text-[#c58b2b]" />
-                  <span className="text-[11px] font-semibold hidden lg:inline">
-                    {t('bill')}
-                  </span>
-                </button>
-
                 {/* Allergen Modal Filter */}
                 <button
                   onClick={onOpenAllergenModal}
@@ -464,29 +451,33 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                   )}
                 </button>
 
-                {/* Admin Portal */}
+                {/* Admin Portal (Espace Privé) */}
                 {!isAdmin ? (
                   <button
                     onClick={onOpenAdminModal}
-                    className="px-3 py-1 rounded-full bg-[#781524] hover:bg-[#99281a] text-white font-bold border border-amber-400/40 text-[11px] flex items-center gap-1.5 transition shadow-xs cursor-pointer active:scale-95"
+                    className="p-1.5 sm:px-3 sm:py-1 rounded-full bg-[#781524] hover:bg-[#99281a] text-white font-bold border border-amber-400/40 text-[11px] flex items-center gap-1.5 transition shadow-xs cursor-pointer active:scale-95 shrink-0"
                     title="Accéder à l'Espace Privé"
+                    aria-label="Accéder à l'Espace Privé"
                   >
-                    <KeyRound className="w-3.5 h-3.5 text-amber-300" />
-                    <span className="font-bold">{t('privateSpace')}</span>
+                    <KeyRound className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                    <span className="hidden sm:inline font-bold">{t('privateSpace')}</span>
                   </button>
                 ) : (
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       onClick={onOpenAdminModal}
-                      className="px-3 py-1 rounded-full bg-[#99281a] hover:bg-[#781524] text-white font-bold text-[11px] flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                      className="p-1.5 sm:px-3 sm:py-1 rounded-full bg-[#99281a] hover:bg-[#781524] text-white font-bold text-[11px] flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                      title="Gérer la carte"
+                      aria-label="Gérer la carte"
                     >
-                      <SlidersHorizontal className="w-3 h-3" />
-                      <span>Gérer la carte</span>
+                      <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" />
+                      <span className="hidden sm:inline">Gérer la carte</span>
                     </button>
                     <button
                       onClick={onLogoutAdmin}
                       className="p-1.5 rounded-full bg-rose-50 hover:bg-rose-600 hover:text-white border border-rose-200 text-rose-600 transition cursor-pointer"
                       title={t('logout')}
+                      aria-label={t('logout')}
                     >
                       <LogOut className="w-3.5 h-3.5" />
                     </button>
@@ -1493,6 +1484,28 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
             </button>
           </div>
         </footer>
+        {/* Floating Mobile Espace Privé Quick Access Button */}
+        {onOpenAdminModal && (
+          <div
+            className={`fixed ${
+              orderCount > 0 ? 'bottom-24' : 'bottom-5'
+            } right-4 z-40 sm:hidden transition-all duration-300`}
+          >
+            <button
+              onClick={onOpenAdminModal}
+              className="w-12 h-12 rounded-full bg-gradient-to-br from-[#99281a] to-[#781524] text-white border-2 border-[#dfab43]/80 shadow-xl flex items-center justify-center cursor-pointer active:scale-90 transition hover:scale-105"
+              title="Accéder à l'Espace Privé"
+              aria-label="Accéder à l'Espace Privé"
+            >
+              {isAdmin ? (
+                <SlidersHorizontal className="w-5 h-5 text-amber-300" />
+              ) : (
+                <KeyRound className="w-5 h-5 text-amber-300" />
+              )}
+            </button>
+          </div>
+        )}
+
         {/* Floating Bottom Table Order Bar */}
         {orderCount > 0 && onOpenOrderModal && (
           <div className="fixed bottom-5 left-4 right-4 sm:left-auto sm:right-6 z-40 max-w-md animate-in slide-in-from-bottom-5 duration-300">

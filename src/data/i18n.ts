@@ -21,8 +21,8 @@ export const I18N_DICT: Record<string, Record<string, string>> = {
   fr: {
     appTitle: 'Gusto',
     appSubtitle: 'Menus digitaux & Géolocalisation nutritionnelle',
-    locateMe: 'Me géolocaliser',
-    gpsActive: 'GPS activé',
+    locateMe: 'Ma position',
+    gpsActive: 'Ville détectée',
     heroBadge: 'Restaurants certifiés • Valeurs nutritionnelles vérifiées',
     heroHeading1: 'Mangez ce qui vous fait plaisir,',
     heroHeading2: 'maîtrisez vos macros.',
@@ -128,8 +128,8 @@ export const I18N_DICT: Record<string, Record<string, string>> = {
   it: {
     appTitle: 'Gusto',
     appSubtitle: 'Menu digitali & Geolocalizzazione nutrizionale',
-    locateMe: 'Geolocalizzami',
-    gpsActive: 'GPS Attivo',
+    locateMe: 'La mia posizione',
+    gpsActive: 'Città rilevata',
     heroBadge: 'Ristoranti certificati • Valori nutrizionali verificati',
     heroHeading1: 'Gusta ciò che ami,',
     heroHeading2: 'controlla i tuoi macro.',
@@ -235,8 +235,8 @@ export const I18N_DICT: Record<string, Record<string, string>> = {
   en: {
     appTitle: 'Gusto',
     appSubtitle: 'Digital Menus & Nutritional Geolocation',
-    locateMe: 'Locate me',
-    gpsActive: 'GPS Active',
+    locateMe: 'My location',
+    gpsActive: 'City detected',
     heroBadge: 'Certified Restaurants • Verified Nutritional Facts',
     heroHeading1: 'Enjoy what you love,',
     heroHeading2: 'master your macros.',
