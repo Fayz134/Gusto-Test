@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { X, Zap, Maximize2, Pencil } from 'lucide-react';
+import { X, Zap, Maximize2, Pencil, Camera } from 'lucide-react';
 import { Dish, Restaurant, Language } from '../types';
 import { I18N_DICT, ALLERGENS_MASTER_LIST } from '../data/i18n';
 import { formatPrice } from '../utils/geo';
+import { processImageFile } from '../utils/imageUpload';
 
 interface DishDetailModalProps {
   isOpen: boolean;
@@ -14,6 +15,8 @@ interface DishDetailModalProps {
   cartCount?: number;
   isAdmin?: boolean;
   onEditDish?: (dish: Dish) => void;
+  onUpdateDish?: (dish: Dish) => void;
+  onShowToast?: (msg: string) => void;
 }
 
 export const DishDetailModal: React.FC<DishDetailModalProps> = ({
@@ -26,12 +29,29 @@ export const DishDetailModal: React.FC<DishDetailModalProps> = ({
   cartCount = 0,
   isAdmin = false,
   onEditDish,
+  onUpdateDish,
+  onShowToast,
 }) => {
   const [showWineDetails, setShowWineDetails] = useState(false);
   const [isAdded, setIsAdded] = useState(false);
   const [isFullscreenPhoto, setIsFullscreenPhoto] = useState(false);
 
   const t = (key: string) => I18N_DICT[currentLang]?.[key] || key;
+
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !dish || !onUpdateDish) return;
+    try {
+      const compressedDataUrl = await processImageFile(file);
+      const updatedDish: Dish = { ...dish, image: compressedDataUrl };
+      onUpdateDish(updatedDish);
+      if (onShowToast) onShowToast(`Photo de « ${dish.name_fr || dish.name} » mise à jour avec succès ! 📸`);
+    } catch (err: any) {
+      if (onShowToast) onShowToast(err?.message || 'Erreur lors de l\'import de l\'image.');
+    } finally {
+      if (e.target) e.target.value = '';
+    }
+  };
 
   // Escape key support to close
   useEffect(() => {
@@ -154,12 +174,28 @@ export const DishDetailModal: React.FC<DishDetailModalProps> = ({
             {/* Gradient Overlays */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/35 pointer-events-none" />
 
-            {/* TOP-LEFT PILL: Provenance / Region */}
-            <div className="absolute top-4 left-4 z-20">
+            {/* TOP-LEFT PILL: Provenance / Region & Admin Change Photo */}
+            <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
               <span className="bg-white/95 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold tracking-wider text-stone-900 uppercase shadow-md inline-flex items-center gap-1">
                 <span>📍</span>
                 <span>{provenanceLabel}</span>
               </span>
+
+              {isAdmin && onUpdateDish && (
+                <label
+                  className="bg-stone-900/85 hover:bg-stone-900 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md inline-flex items-center gap-1.5 transition cursor-pointer border border-white/20 active:scale-95 backdrop-blur-xs"
+                  title="Changer la photo manuellement"
+                >
+                  <Camera className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Changer photo</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handlePhotoChange}
+                  />
+                </label>
+              )}
             </div>
 
             {/* TOP-RIGHT BUTTON: Fullscreen */}
@@ -464,6 +500,22 @@ export const DishDetailModal: React.FC<DishDetailModalProps> = ({
                     <Pencil className="w-3.5 h-3.5 text-amber-700" />
                     <span className="hidden sm:inline">Modifier</span>
                   </button>
+                )}
+
+                {isAdmin && onUpdateDish && dish && (
+                  <label
+                    className="px-3 py-2.5 sm:py-3 rounded-2xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shrink-0"
+                    title="Changer la photo manuellement"
+                  >
+                    <Camera className="w-3.5 h-3.5 text-amber-700" />
+                    <span className="hidden sm:inline">Photo</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handlePhotoChange}
+                    />
+                  </label>
                 )}
 
                 <button

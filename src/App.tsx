@@ -737,6 +737,8 @@ export default function App() {
         cartCount={orderItems.find((i) => i.dish.id === selectedDish?.id)?.quantity || 0}
         isAdmin={isAdmin}
         onEditDish={handleOpenAdminForEdit}
+        onUpdateDish={handleUpdateDish}
+        onShowToast={showToast}
       />
 
       <OrderSummaryModal

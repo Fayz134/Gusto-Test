@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   X,
   Lock,
@@ -27,10 +27,14 @@ import {
   Plus,
   ArrowLeft,
   Image as ImageIcon,
+  Upload,
+  Camera,
+  Link as LinkIcon,
 } from 'lucide-react';
 import { Dish, Language, MenuCategory, Restaurant } from '../types';
 import { I18N_DICT, ALLERGENS_MASTER_LIST } from '../data/i18n';
 import { formatPrice } from '../utils/geo';
+import { processImageFile } from '../utils/imageUpload';
 
 interface AdminPortalModalProps {
   isOpen: boolean;
@@ -118,27 +122,6 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
   const [pinError, setPinError] = useState(false);
   const [showPin, setShowPin] = useState(false);
 
-  const handleKeypadPress = (digit: string) => {
-    setPinError(false);
-    if (pinInput.length < 10) {
-      setPinInput((prev) => prev + digit);
-    }
-  };
-
-  const handleKeypadBackspace = () => {
-    setPinError(false);
-    setPinInput((prev) => prev.slice(0, -1));
-  };
-
-  const handleQuickLogin = () => {
-    const success = onLogin('1504');
-    if (success) {
-      setPinError(false);
-      setPinInput('');
-      onShowToast('Connexion réussie à l\'espace privé (Code 1504) ! 🔓');
-    }
-  };
-
   // Dish list filtering inside admin space
   const [dishSearch, setDishSearch] = useState('');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('all');
@@ -168,6 +151,42 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
   const [tagsInput, setTagsInput] = useState('Artisanal, Fait Maison');
   const [isHalal, setIsHalal] = useState(false);
   const [isVegan, setIsVegan] = useState(false);
+
+  // Manual Photo Upload State
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [photoSourceMode, setPhotoSourceMode] = useState<'file' | 'url' | 'presets'>('file');
+
+  const handleFormImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setIsUploadingPhoto(true);
+      const compressedDataUrl = await processImageFile(file);
+      setImage(compressedDataUrl);
+      onShowToast('Photo importée avec succès depuis votre appareil ! 📸');
+    } catch (err: any) {
+      onShowToast(err?.message || 'Erreur lors de l\'import de la photo.');
+    } finally {
+      setIsUploadingPhoto(false);
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  const handleQuickChangeDishPhoto = async (dish: Dish, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const compressedDataUrl = await processImageFile(file);
+      const updatedDish: Dish = { ...dish, image: compressedDataUrl };
+      onUpdateDish(updatedDish);
+      onShowToast(`Photo de « ${dish.name_fr || dish.name} » mise à jour avec succès ! 📸`);
+    } catch (err: any) {
+      onShowToast(err?.message || 'Erreur lors du traitement de l\'image.');
+    } finally {
+      if (e.target) e.target.value = '';
+    }
+  };
 
   // New Category Form State
   const [catNameFr, setCatNameFr] = useState('');
@@ -393,18 +412,18 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
 
         {!isAdmin ? (
           /* =========================================================================
-             LOGIN FORM WITH DIRECT 1-CLICK & KEYPAD
+             LOGIN FORM - SIMPLE, SECURE PASSWORD / PIN SYSTEM
              ========================================================================= */
-          <div className="space-y-4 text-center py-4 max-w-sm mx-auto w-full my-auto overflow-y-auto">
-            <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 flex items-center justify-center mx-auto shadow-sm">
-              <Lock className="w-6 h-6 text-[#99281a]" />
+          <div className="space-y-5 text-center py-6 max-w-sm mx-auto w-full my-auto overflow-y-auto">
+            <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 text-[#99281a] flex items-center justify-center mx-auto shadow-sm">
+              <Lock className="w-7 h-7" />
             </div>
 
             <div>
               <h3 className="text-xl font-serif font-bold text-stone-900">
                 {t('adminModalTitle')}
               </h3>
-              <p className="text-xs text-stone-500 mt-0.5">
+              <p className="text-xs text-stone-500 mt-1">
                 Espace restaurateur •{' '}
                 <strong className="text-stone-800 font-semibold">
                   {activeRestaurant.name}
@@ -412,100 +431,52 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
               </p>
             </div>
 
-            {/* Direct 1-Click login button */}
-            <button
-              type="button"
-              onClick={handleQuickLogin}
-              className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-[#781524] to-[#99281a] hover:from-[#99281a] hover:to-[#781524] text-white font-bold text-xs shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer border border-amber-400/40 active:scale-98"
-            >
-              <Unlock className="w-4 h-4 text-amber-300 animate-pulse" />
-              <span>Accéder directement (Code 1504)</span>
-            </button>
-
-            <div className="relative flex py-1 items-center">
-              <div className="grow border-t border-stone-200"></div>
-              <span className="shrink mx-3 text-[10px] text-stone-400 uppercase tracking-widest font-bold">ou saisie manuelle</span>
-              <div className="grow border-t border-stone-200"></div>
-            </div>
-
-            <form onSubmit={handleLoginSubmit} className="space-y-3">
+            <form onSubmit={handleLoginSubmit} className="space-y-4 pt-2">
               <div className="relative">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400">
+                  <Lock className="w-4 h-4" />
+                </div>
                 <input
                   type={showPin ? 'text' : 'password'}
-                  inputMode="numeric"
-                  pattern="[0-9]*"
                   value={pinInput}
                   onChange={(e) => {
                     setPinInput(e.target.value);
                     setPinError(false);
                   }}
-                  placeholder="Code PIN (1504)"
                   autoFocus
-                  className="w-full bg-stone-50 border border-stone-300 rounded-2xl px-4 py-3 text-center text-stone-900 tracking-widest text-xl font-bold focus:outline-none focus:ring-2 focus:ring-[#99281a]"
+                  autoComplete="current-password"
+                  placeholder="••••••••"
+                  className="w-full bg-stone-50 border border-stone-300 rounded-2xl pl-11 pr-11 py-3 text-center text-stone-900 text-lg font-mono font-bold tracking-widest focus:outline-none focus:ring-2 focus:ring-[#99281a] focus:bg-white transition"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPin(!showPin)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 p-1 cursor-pointer"
-                  title={showPin ? 'Masquer le code' : 'Afficher le code'}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 p-1.5 rounded-lg hover:bg-stone-200/60 transition cursor-pointer"
+                  title={showPin ? 'Masquer' : 'Afficher'}
+                  aria-label={showPin ? 'Masquer' : 'Afficher'}
                 >
                   {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
 
-              {/* Quick on-screen numeric dial pad */}
-              <div className="grid grid-cols-3 gap-1.5 pt-1">
-                {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
-                  <button
-                    key={digit}
-                    type="button"
-                    onClick={() => handleKeypadPress(digit)}
-                    className="py-2 rounded-xl bg-stone-100 hover:bg-stone-200 active:bg-stone-300 text-stone-800 font-bold text-base transition shadow-2xs cursor-pointer touch-manipulation"
-                  >
-                    {digit}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  onClick={handleKeypadBackspace}
-                  className="py-2 rounded-xl bg-stone-100 hover:bg-stone-200 active:bg-stone-300 text-stone-500 font-bold text-xs transition shadow-2xs cursor-pointer touch-manipulation"
-                >
-                  Effacer
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleKeypadPress('0')}
-                  className="py-2 rounded-xl bg-stone-100 hover:bg-stone-200 active:bg-stone-300 text-stone-800 font-bold text-base transition shadow-2xs cursor-pointer touch-manipulation"
-                >
-                  0
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPinInput('1504')}
-                  className="py-2 rounded-xl bg-amber-100 hover:bg-amber-200 active:bg-amber-300 text-amber-900 font-bold text-xs transition shadow-2xs cursor-pointer touch-manipulation"
-                >
-                  1504
-                </button>
-              </div>
-
               {pinError && (
-                <p className="text-xs text-rose-600 font-semibold flex items-center justify-center gap-1">
-                  <AlertTriangle className="w-3.5 h-3.5" />
-                  {t('adminError')} (Entrez 1504)
-                </p>
+                <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 font-medium flex items-center justify-center gap-1.5 animate-shake">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{t('adminError')}</span>
+                </div>
               )}
 
-              <div className="flex gap-2 pt-1">
+              <div className="flex gap-2 pt-2">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="w-1/2 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 font-semibold rounded-2xl text-xs transition cursor-pointer"
+                  className="w-1/2 py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 font-semibold rounded-2xl text-xs transition cursor-pointer"
                 >
                   {t('cancel')}
                 </button>
                 <button
                   type="submit"
-                  className="w-1/2 py-2.5 bg-[#99281a] hover:bg-[#781524] text-white font-bold rounded-2xl text-xs transition cursor-pointer shadow-md"
+                  className="w-1/2 py-3 bg-[#99281a] hover:bg-[#781524] text-white font-bold rounded-2xl text-xs transition cursor-pointer shadow-md hover:shadow-lg"
                 >
                   {t('login')}
                 </button>
@@ -708,15 +679,30 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                               {/* Left: Thumbnail & Details */}
                               <div className="flex items-start sm:items-center gap-3 min-w-0">
-                                <img
-                                  src={dish.image}
-                                  alt={dish.name}
-                                  className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl object-cover border border-stone-200 shrink-0 bg-stone-200"
-                                  onError={(e) => {
-                                    (e.target as HTMLImageElement).src =
-                                      QUICK_IMAGE_PRESETS[0].url;
-                                  }}
-                                />
+                                <div className="relative group/thumb shrink-0">
+                                  <img
+                                    src={dish.image}
+                                    alt={dish.name}
+                                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl object-cover border border-stone-200 bg-stone-200"
+                                    onError={(e) => {
+                                      (e.target as HTMLImageElement).src =
+                                        QUICK_IMAGE_PRESETS[0].url;
+                                    }}
+                                  />
+                                  <label
+                                    className="absolute inset-0 bg-stone-900/70 rounded-xl opacity-0 group-hover/thumb:opacity-100 flex flex-col items-center justify-center text-white text-[9px] font-bold transition-opacity cursor-pointer"
+                                    title="Changer la photo manuellement"
+                                  >
+                                    <Camera className="w-4 h-4 text-white drop-shadow mb-0.5" />
+                                    <span>Changer</span>
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      className="hidden"
+                                      onChange={(e) => handleQuickChangeDishPhoto(dish, e)}
+                                    />
+                                  </label>
+                                </div>
 
                                 <div className="min-w-0 space-y-1">
                                   <div className="flex items-center gap-2 flex-wrap">
@@ -993,49 +979,182 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Row 4: Image URL + Quick Presets */}
-                  <div className="space-y-2 bg-stone-50 p-3 rounded-2xl border border-stone-200">
-                    <div className="flex items-center justify-between">
-                      <label className="text-stone-800 font-semibold flex items-center gap-1">
-                        <ImageIcon className="w-3.5 h-3.5 text-[#99281a]" />
-                        <span>Photo du plat (URL Unsplash ou web) :</span>
-                      </label>
-                      <span className="text-[10px] text-stone-500">
-                        Cliquez sur un modèle rapide ou collez votre lien
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="url"
-                        value={image}
-                        onChange={(e) => setImage(e.target.value)}
-                        placeholder="https://images.unsplash.com/..."
-                        className="grow bg-white border border-stone-300 rounded-xl px-3 py-1.5 text-stone-900 focus:outline-none text-xs"
-                      />
-                      <img
-                        src={image}
-                        alt="Aperçu"
-                        className="w-10 h-10 rounded-lg object-cover border border-stone-300 shrink-0 bg-stone-200"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = QUICK_IMAGE_PRESETS[0].url;
-                        }}
-                      />
-                    </div>
-
-                    {/* Quick photo buttons */}
-                    <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-1">
-                      {QUICK_IMAGE_PRESETS.map((preset, idx) => (
+                  {/* Row 4: Photo du plat - Manuel (Fichier / Galerie / Caméra), URL ou Modèles */}
+                  <div className="space-y-3 bg-stone-50/90 p-4 rounded-3xl border border-stone-200">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-stone-200">
+                      <div className="flex items-center gap-1.5">
+                        <Camera className="w-4 h-4 text-[#99281a]" />
+                        <span className="text-stone-900 font-bold text-xs">
+                          Photo du plat
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 text-[11px] bg-stone-200/70 p-0.5 rounded-xl border border-stone-300/60">
                         <button
-                          key={idx}
                           type="button"
-                          onClick={() => setImage(preset.url)}
-                          className="px-2.5 py-1 rounded-lg bg-white hover:bg-stone-200 border border-stone-200 text-[10px] font-semibold text-stone-700 whitespace-nowrap transition cursor-pointer"
+                          onClick={() => setPhotoSourceMode('file')}
+                          className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer flex items-center gap-1 ${
+                            photoSourceMode === 'file'
+                              ? 'bg-white text-[#99281a] shadow-xs'
+                              : 'text-stone-600 hover:text-stone-900'
+                          }`}
                         >
-                          {preset.label}
+                          <Upload className="w-3 h-3" />
+                          <span>Mon Appareil / Fichier</span>
                         </button>
-                      ))}
+                        <button
+                          type="button"
+                          onClick={() => setPhotoSourceMode('url')}
+                          className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer flex items-center gap-1 ${
+                            photoSourceMode === 'url'
+                              ? 'bg-white text-[#99281a] shadow-xs'
+                              : 'text-stone-600 hover:text-stone-900'
+                          }`}
+                        >
+                          <LinkIcon className="w-3 h-3" />
+                          <span>Lien URL</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPhotoSourceMode('presets')}
+                          className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer flex items-center gap-1 ${
+                            photoSourceMode === 'presets'
+                              ? 'bg-white text-[#99281a] shadow-xs'
+                              : 'text-stone-600 hover:text-stone-900'
+                          }`}
+                        >
+                          <Sparkles className="w-3 h-3" />
+                          <span>Modèles</span>
+                        </button>
+                      </div>
                     </div>
+
+                    {/* Mode 1: File / Camera upload */}
+                    {photoSourceMode === 'file' && (
+                      <div className="space-y-3">
+                        <div
+                          onClick={() => fileInputRef.current?.click()}
+                          className="border-2 border-dashed border-stone-300 hover:border-[#99281a] bg-white rounded-2xl p-4 sm:p-5 text-center cursor-pointer transition hover:bg-amber-50/20 group"
+                        >
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/*"
+                            onChange={handleFormImageUpload}
+                            className="hidden"
+                          />
+                          <div className="w-12 h-12 rounded-2xl bg-amber-50 group-hover:bg-[#99281a]/10 text-[#99281a] flex items-center justify-center mx-auto mb-2 transition">
+                            <Upload className="w-6 h-6 group-hover:scale-110 transition-transform" />
+                          </div>
+                          <p className="text-xs font-bold text-stone-800">
+                            Cliquez pour importer une photo manuellement
+                          </p>
+                          <p className="text-[11px] text-stone-500 mt-0.5">
+                            Depuis votre galerie, vos dossiers ou appareil photo (JPG, PNG, WebP)
+                          </p>
+                          <span className="inline-flex items-center gap-1.5 mt-2.5 px-3.5 py-1.5 bg-stone-100 group-hover:bg-[#99281a] text-stone-700 group-hover:text-white rounded-xl text-[11px] font-bold transition shadow-2xs">
+                            <Camera className="w-3.5 h-3.5" />
+                            <span>{isUploadingPhoto ? 'Importation en cours...' : 'Choisir une photo sur cet appareil'}</span>
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Mode 2: Manual URL */}
+                    {photoSourceMode === 'url' && (
+                      <div className="space-y-2">
+                        <label className="text-[11px] text-stone-600 font-medium block">
+                          Saisissez l'adresse URL directe de la photo (ex: Unsplash, Pexels, etc.) :
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="url"
+                            value={image}
+                            onChange={(e) => setImage(e.target.value)}
+                            placeholder="https://images.unsplash.com/... ou https://..."
+                            className="grow bg-white border border-stone-300 rounded-xl px-3 py-2 text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#99281a] text-xs font-mono"
+                          />
+                          {image && (
+                            <button
+                              type="button"
+                              onClick={() => setImage('')}
+                              className="px-3 py-2 bg-stone-200 hover:bg-stone-300 rounded-xl text-stone-700 text-xs font-semibold cursor-pointer shrink-0"
+                            >
+                              Effacer
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Mode 3: Presets */}
+                    {photoSourceMode === 'presets' && (
+                      <div className="space-y-1.5">
+                        <span className="text-[11px] text-stone-500 block">
+                          Sélectionnez une photo de notre collection gastronomique :
+                        </span>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                          {QUICK_IMAGE_PRESETS.map((preset, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => setImage(preset.url)}
+                              className={`p-2 rounded-xl border text-left flex items-center gap-2 transition cursor-pointer ${
+                                image === preset.url
+                                  ? 'bg-[#99281a] text-white border-[#99281a] shadow-xs'
+                                  : 'bg-white hover:bg-stone-100 text-stone-800 border-stone-200'
+                              }`}
+                            >
+                              <img
+                                src={preset.url}
+                                alt={preset.label}
+                                className="w-8 h-8 rounded-lg object-cover shrink-0"
+                              />
+                              <span className="text-[11px] font-bold truncate">
+                                {preset.label}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Image Preview Card */}
+                    {image && (
+                      <div className="flex items-center justify-between gap-3 bg-white p-2.5 rounded-2xl border border-stone-200 shadow-2xs">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <img
+                            src={image}
+                            alt="Aperçu sélectionné"
+                            className="w-14 h-14 rounded-xl object-cover border border-stone-300 bg-stone-100 shrink-0 shadow-2xs"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = QUICK_IMAGE_PRESETS[0].url;
+                            }}
+                          />
+                          <div className="min-w-0">
+                            <span className="text-xs font-bold text-stone-800 block truncate">
+                              Photo active du plat
+                            </span>
+                            <span className="text-[10px] text-emerald-700 font-semibold flex items-center gap-1">
+                              <Check className="w-3 h-3 shrink-0" />
+                              <span className="truncate">
+                                {image.startsWith('data:') ? 'Photo manuelle importée (stockée localement)' : 'Lien URL valide'}
+                              </span>
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="px-2.5 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-[11px] font-semibold flex items-center gap-1 transition cursor-pointer"
+                          >
+                            <Camera className="w-3.5 h-3.5 text-[#99281a]" />
+                            <span>Remplacer</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Row 5: Region & Wine pairing & Tags */}

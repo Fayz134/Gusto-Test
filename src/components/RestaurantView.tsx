@@ -358,29 +358,29 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
               {/* Action tools */}
               <div className="flex items-center gap-2 flex-wrap">
                 
-                {/* View Switcher: Photos vs Classic */}
-                <div className="bg-stone-200/70 p-0.5 rounded-full flex items-center border border-stone-300/80 shadow-inner">
+                {/* View Switcher: Photos vs Carte Élégante */}
+                <div className="bg-stone-200/80 p-0.5 rounded-full flex items-center border border-stone-300/80 shadow-inner">
                   <button
                     onClick={() => setViewMode('cards')}
-                    className={`px-2.5 py-1 rounded-full text-[11px] flex items-center gap-1 transition cursor-pointer ${
+                    className={`px-3 py-1 rounded-full text-[11px] sm:text-xs flex items-center gap-1.5 transition cursor-pointer ${
                       viewMode === 'cards'
                         ? 'bg-white text-[#99281a] shadow-xs font-bold'
-                        : 'text-stone-600 hover:text-stone-900'
+                        : 'text-stone-600 hover:text-stone-900 font-medium'
                     }`}
                   >
-                    <LayoutGrid className="w-3 h-3" />
-                    <span className="hidden md:inline">{t('viewPhotos')}</span>
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                    <span>{t('viewPhotos')}</span>
                   </button>
                   <button
                     onClick={() => setViewMode('classic')}
-                    className={`px-2.5 py-1 rounded-full text-[11px] flex items-center gap-1 transition cursor-pointer ${
+                    className={`px-3 py-1 rounded-full text-[11px] sm:text-xs flex items-center gap-1.5 transition cursor-pointer ${
                       viewMode === 'classic'
                         ? 'bg-white text-[#99281a] shadow-xs font-bold'
-                        : 'text-stone-600 hover:text-stone-900'
+                        : 'text-stone-600 hover:text-stone-900 font-medium'
                     }`}
                   >
-                    <BookOpen className="w-3 h-3" />
-                    <span className="hidden md:inline">{t('viewClassic')}</span>
+                    <BookOpen className="w-3.5 h-3.5" />
+                    <span className="font-bold">Carte Élégante</span>
                   </button>
                 </div>
 
@@ -394,40 +394,6 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                   <option value="it">🇮🇹 IT</option>
                   <option value="en">🇬🇧 EN</option>
                 </select>
-
-                {/* QR Code */}
-                <button
-                  onClick={onOpenQrModal}
-                  title={t('qrModalTitle')}
-                  className="p-1.5 rounded-full bg-white hover:bg-stone-100 border border-stone-300 text-stone-700 transition shadow-xs cursor-pointer"
-                >
-                  <QrCode className="w-3.5 h-3.5 text-[#781524]" />
-                </button>
-
-                {/* Table Order Cart */}
-                {onOpenOrderModal && (
-                  <button
-                    onClick={onOpenOrderModal}
-                    title="Commande de la table"
-                    className={`p-1.5 rounded-full border transition shadow-xs flex items-center gap-1.5 px-3 cursor-pointer ${
-                      orderCount > 0
-                        ? 'bg-[#8a3311] text-white border-[#8a3311] ring-2 ring-[#8a3311]/20'
-                        : 'bg-white hover:bg-stone-100 border-stone-300 text-stone-700'
-                    }`}
-                  >
-                    <span className="text-xs">🛍️</span>
-                    <span className="text-[11px] font-bold">
-                      {orderCount > 0 ? (
-                        <>
-                          <span className="hidden sm:inline">Commande : </span>
-                          <span>{orderCount} ({formatPrice(orderTotal)})</span>
-                        </>
-                      ) : (
-                        <span className="hidden lg:inline">Ma commande</span>
-                      )}
-                    </span>
-                  </button>
-                )}
 
                 {/* Allergen Modal Filter */}
                 <button
@@ -1057,6 +1023,22 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
 
         {/* Dishes Listing by Categories */}
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
+          {/* Carte Élégante Title Header */}
+          {viewMode === 'classic' && (
+            <div className="text-center py-6 border-b border-stone-300 bg-white/60 rounded-3xl p-6 shadow-2xs backdrop-blur-xs">
+              <span className="text-[11px] uppercase tracking-[0.25em] text-[#99281a] font-serif font-bold block mb-1">
+                Menu Traditionnel de la Maison
+              </span>
+              <h2 className="text-2xl sm:text-4xl font-serif font-bold text-stone-900 tracking-tight">
+                Carte Élégante
+              </h2>
+              <div className="w-16 h-0.5 bg-[#dfab43] mx-auto mt-2.5 mb-1.5"></div>
+              <p className="text-xs text-stone-500 font-serif italic max-w-md mx-auto">
+                {restaurant.name} • Présentation épurée avec détails nutritionnels et provenance des ingrédients
+              </p>
+            </div>
+          )}
+
           {/* Active Filters Summary Badge Strip */}
           {(totalActiveFiltersCount > 0 || searchQuery) && (
             <div className="bg-stone-100/90 border border-stone-200/90 rounded-2xl p-3 sm:px-4 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
@@ -1475,7 +1457,14 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
           <p className="text-xs text-stone-600 mt-1">
             {restaurant.address} • {restaurant.phone}
           </p>
-          <div className="mt-4">
+          <div className="mt-4 flex items-center justify-center gap-2 flex-wrap">
+            <button
+              onClick={onOpenQrModal}
+              className="px-4 py-2.5 rounded-full bg-white hover:bg-stone-50 border border-stone-300 text-stone-700 font-semibold text-xs transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+            >
+              <QrCode className="w-3.5 h-3.5 text-[#781524]" />
+              <span>Afficher le QR Code Table</span>
+            </button>
             <button
               onClick={onBackToPortal}
               className="px-6 py-2.5 rounded-full bg-stone-900 hover:bg-stone-800 text-white font-bold text-xs transition cursor-pointer shadow-md"
