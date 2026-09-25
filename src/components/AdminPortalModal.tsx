@@ -30,11 +30,15 @@ import {
   Upload,
   Camera,
   Link as LinkIcon,
+  Languages,
+  Crown,
 } from 'lucide-react';
 import { Dish, Language, MenuCategory, Restaurant } from '../types';
 import { I18N_DICT, ALLERGENS_MASTER_LIST } from '../data/i18n';
 import { formatPrice } from '../utils/geo';
 import { processImageFile } from '../utils/imageUpload';
+import { calculateDishMacrosAuto, MacroCalculationResult } from '../utils/macroCalculator';
+import { autoTranslateCulinary, translateCulinaryLocally } from '../utils/translator';
 
 interface AdminPortalModalProps {
   isOpen: boolean;
@@ -52,6 +56,7 @@ interface AdminPortalModalProps {
   onShowToast: (msg: string) => void;
   initialEditingDish?: Dish | null;
   onClearInitialEditingDish?: () => void;
+  onOpenCreatorDashboard?: () => void;
 }
 
 const AVAILABLE_CATEGORY_ICONS = [
@@ -111,6 +116,7 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
   onShowToast,
   initialEditingDish,
   onClearInitialEditingDish,
+  onOpenCreatorDashboard,
 }) => {
   const t = (key: string) => I18N_DICT[currentLang]?.[key] || key;
 
@@ -156,6 +162,129 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [photoSourceMode, setPhotoSourceMode] = useState<'file' | 'url' | 'presets'>('file');
+
+  // Auto Macro Calculation State
+  const [ingredientsInput, setIngredientsInput] = useState('');
+  const [isCalculatingMacros, setIsCalculatingMacros] = useState(false);
+  const [macroCalcSummary, setMacroCalcSummary] = useState<MacroCalculationResult | null>(null);
+
+  const handleAutoCalculateMacros = async () => {
+    const textToAnalyze =
+      ingredientsInput.trim() ||
+      longDescription.trim() ||
+      description.trim() ||
+      nameFr;
+
+    if (!textToAnalyze && !image) {
+      onShowToast('Veuillez renseigner des aliments ou fournir une photo du plat.');
+      return;
+    }
+
+    try {
+      setIsCalculatingMacros(true);
+      const res = await calculateDishMacrosAuto({
+        dishName: nameFr,
+        ingredients: textToAnalyze,
+        image,
+        portion,
+      });
+
+      setKcal(res.kcal.toString());
+      setProtein(res.protein.toString());
+      setCarbs(res.carbs.toString());
+      setFat(res.fat.toString());
+      setFiber(res.fiber.toString());
+      if (res.estimatedPortion && (!portion || portion === '380g' || portion === '350g')) {
+        setPortion(res.estimatedPortion);
+      }
+      if (res.detectedAllergens && res.detectedAllergens.length > 0) {
+        setSelectedAllergens((prev) =>
+          Array.from(new Set([...prev, ...res.detectedAllergens]))
+        );
+      }
+      setMacroCalcSummary(res);
+      onShowToast(
+        `Macronutriments calculés avec succès : ${res.kcal} kcal (P: ${res.protein}g, G: ${res.carbs}g, L: ${res.fat}g) ! ✨`
+      );
+    } catch (err: any) {
+      onShowToast('Erreur lors du calcul automatique des macros.');
+    } finally {
+      setIsCalculatingMacros(false);
+    }
+  };
+
+  // Auto-Translation States
+  const [isTranslatingDish, setIsTranslatingDish] = useState(false);
+  const [isTranslatingCat, setIsTranslatingCat] = useState(false);
+  const [isTranslatingAll, setIsTranslatingAll] = useState(false);
+
+  const handleAutoTranslateDish = async (customName?: string) => {
+    const targetName = (customName || nameFr).trim();
+    if (!targetName) return;
+
+    try {
+      setIsTranslatingDish(true);
+      const res = await autoTranslateCulinary({
+        name: targetName,
+        description: description || longDescription,
+        categoryName: activeRestaurant.categories.find((c) => c.id === categoryId)?.name_fr || '',
+        type: 'dish',
+      });
+
+      if (res.name_it) setNameIt(res.name_it);
+      if (res.name_en) setNameEn(res.name_en);
+      onShowToast(`Traductions générées : 🇮🇹 ${res.name_it} | 🇬🇧 ${res.name_en}`);
+    } catch (err) {
+      console.warn('Auto translation error', err);
+    } finally {
+      setIsTranslatingDish(false);
+    }
+  };
+
+  const handleAutoTranslateCategory = async (customCatName?: string) => {
+    const targetName = (customCatName || catNameFr).trim();
+    if (!targetName) return;
+
+    try {
+      setIsTranslatingCat(true);
+      const res = await autoTranslateCulinary({
+        name: targetName,
+        type: 'category',
+      });
+
+      if (res.name_it) setCatNameIt(res.name_it);
+      if (res.name_en) setCatNameEn(res.name_en);
+      onShowToast(`Catégorie traduite : 🇮🇹 ${res.name_it} | 🇬🇧 ${res.name_en}`);
+    } catch (err) {
+      console.warn('Auto category translation error', err);
+    } finally {
+      setIsTranslatingCat(false);
+    }
+  };
+
+  const handleTranslateAllMenu = async () => {
+    try {
+      setIsTranslatingAll(true);
+      let count = 0;
+      for (const dish of activeRestaurant.dishes) {
+        if (!dish.name_it || !dish.name_en) {
+          const autoRes = translateCulinaryLocally(dish.name_fr || dish.name, dish.description, 'dish');
+          const updatedDish: Dish = {
+            ...dish,
+            name_it: dish.name_it || autoRes.name_it,
+            name_en: dish.name_en || autoRes.name_en,
+          };
+          onUpdateDish(updatedDish);
+          count++;
+        }
+      }
+      onShowToast(`Traduction automatique terminée : ${count} plat(s) mis à jour en italien et anglais ! 🌐`);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsTranslatingAll(false);
+    }
+  };
 
   const handleFormImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -236,6 +365,8 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
     setTagsInput('Artisanal, Fait Maison');
     setIsHalal(false);
     setIsVegan(false);
+    setIngredientsInput('');
+    setMacroCalcSummary(null);
     if (onClearInitialEditingDish) onClearInitialEditingDish();
   };
 
@@ -251,6 +382,8 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
     setWinePairing(dish.winePairing || '');
     setDescription(dish.description || '');
     setLongDescription(dish.longDescription || '');
+    setIngredientsInput(dish.longDescription || dish.description || '');
+    setMacroCalcSummary(null);
     setImage(dish.image || QUICK_IMAGE_PRESETS[0].url);
     setKcal(dish.nutrition?.kcal ? dish.nutrition.kcal.toString() : '500');
     setProtein(dish.nutrition?.protein ? dish.nutrition.protein.toString() : '20');
@@ -293,13 +426,22 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
       tagsArray.push('Végétalien');
     }
 
+    // Auto-fill Italian and English translations if empty
+    let finalNameIt = nameIt.trim();
+    let finalNameEn = nameEn.trim();
+    if (!finalNameIt || !finalNameEn) {
+      const autoRes = translateCulinaryLocally(nameFr, description, 'dish');
+      if (!finalNameIt) finalNameIt = autoRes.name_it;
+      if (!finalNameEn) finalNameEn = autoRes.name_en;
+    }
+
     const dishPayload: Dish = {
       id: editingDishId || `custom_${Date.now()}`,
       categoryId,
       name: nameFr,
       name_fr: nameFr,
-      name_it: nameIt.trim() || undefined,
-      name_en: nameEn.trim() || undefined,
+      name_it: finalNameIt,
+      name_en: finalNameEn,
       price: Math.max(0.5, parseFloat(price) || 12.0),
       portion: portion.trim() || '300g',
       region: region.trim() || undefined,
@@ -348,12 +490,21 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '');
 
+    // Auto-fill Italian and English translations if empty
+    let finalCatIt = catNameIt.trim();
+    let finalCatEn = catNameEn.trim();
+    if (!finalCatIt || !finalCatEn) {
+      const autoRes = translateCulinaryLocally(catNameFr, '', 'category');
+      if (!finalCatIt) finalCatIt = autoRes.name_it;
+      if (!finalCatEn) finalCatEn = autoRes.name_en;
+    }
+
     const newCategory: MenuCategory = {
       id: `${slug || 'cat'}_${Date.now()}`,
       name: catNameFr,
       name_fr: catNameFr,
-      name_it: catNameIt || catNameFr,
-      name_en: catNameEn || catNameFr,
+      name_it: finalCatIt,
+      name_en: finalCatEn,
       iconName: catIcon,
     };
 
@@ -482,6 +633,22 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
                 </button>
               </div>
             </form>
+
+            {onOpenCreatorDashboard && (
+              <div className="pt-3 border-t border-stone-100 text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenCreatorDashboard();
+                  }}
+                  className="text-stone-500 hover:text-stone-900 text-xs font-bold inline-flex items-center gap-1.5 transition cursor-pointer hover:underline"
+                >
+                  <Crown className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Vous êtes le créateur du site ? Ouvrir le Dashboard Fondateur</span>
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           /* =========================================================================
@@ -601,14 +768,27 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
                       )}
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={handleStartAddDish}
-                      className="px-3.5 py-2 rounded-xl bg-[#99281a] hover:bg-[#781524] text-white text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-xs cursor-pointer shrink-0"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>Nouveau plat</span>
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={handleTranslateAllMenu}
+                        disabled={isTranslatingAll}
+                        className="px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-[#8a3311] border border-amber-300 text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-2xs cursor-pointer active:scale-95 disabled:opacity-60"
+                        title="Traduire automatiquement tous les plats et menus de la carte en italien et anglais"
+                      >
+                        <Languages className="w-3.5 h-3.5 text-amber-700" />
+                        <span>{isTranslatingAll ? 'Traduction...' : '✨ Traduire la carte (IT/EN)'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleStartAddDish}
+                        className="px-3.5 py-2 rounded-xl bg-[#99281a] hover:bg-[#781524] text-white text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-xs cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Nouveau plat</span>
+                      </button>
+                    </div>
                   </div>
 
                   {/* Category Pills Filter */}
@@ -857,46 +1037,82 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Row 1: Names */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="sm:col-span-1">
-                      <label className="block text-stone-800 font-semibold mb-1">
-                        Nom du plat (Français) *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={nameFr}
-                        onChange={(e) => setNameFr(e.target.value)}
-                        placeholder="ex: Pizza Napolitaine Cantadora"
-                        className="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#99281a] font-medium"
-                      />
+                  {/* Row 1: Names with Automatic Multilingual Translation */}
+                  <div className="bg-stone-50/70 p-3.5 rounded-2xl border border-stone-200 space-y-2.5">
+                    <div className="flex items-center justify-between pb-1.5 border-b border-stone-200/80">
+                      <div className="flex items-center gap-1.5">
+                        <Languages className="w-3.5 h-3.5 text-[#99281a]" />
+                        <span className="font-bold text-stone-900 text-xs uppercase tracking-wider">
+                          Dénominations & Traductions automatiques
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleAutoTranslateDish()}
+                        disabled={isTranslatingDish || !nameFr.trim()}
+                        className="px-2.5 py-1 rounded-xl bg-amber-50 hover:bg-amber-100 text-[#8a3311] border border-amber-300 text-[11px] font-bold flex items-center gap-1.5 transition cursor-pointer shadow-2xs active:scale-95 disabled:opacity-50"
+                        title="Traduire automatiquement le nom en italien et anglais avec l'IA"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                        <span>{isTranslatingDish ? 'Traduction en cours...' : '✨ Traduire automatiquement (IT / EN)'}</span>
+                      </button>
                     </div>
 
-                    <div>
-                      <label className="block text-stone-800 font-semibold mb-1">
-                        Nom (Italien / VO)
-                      </label>
-                      <input
-                        type="text"
-                        value={nameIt}
-                        onChange={(e) => setNameIt(e.target.value)}
-                        placeholder="ex: Pizza Napoletana"
-                        className="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-900 focus:outline-none"
-                      />
-                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="sm:col-span-1">
+                        <label className="block text-stone-800 font-semibold mb-1">
+                          Nom du plat (Français) *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={nameFr}
+                          onChange={(e) => setNameFr(e.target.value)}
+                          onBlur={() => {
+                            if (nameFr.trim() && (!nameIt.trim() || !nameEn.trim())) {
+                              handleAutoTranslateDish();
+                            }
+                          }}
+                          placeholder="ex: Pizza Napolitaine Cantadora"
+                          className="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#99281a] font-medium"
+                        />
+                      </div>
 
-                    <div>
-                      <label className="block text-stone-800 font-semibold mb-1">
-                        Nom (Anglais)
-                      </label>
-                      <input
-                        type="text"
-                        value={nameEn}
-                        onChange={(e) => setNameEn(e.target.value)}
-                        placeholder="ex: Neapolitan Cantadora Pizza"
-                        className="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-900 focus:outline-none"
-                      />
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-stone-800 font-semibold">
+                            Nom (Italien / VO)
+                          </label>
+                          <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded font-mono font-medium">
+                            Auto 🇮🇹
+                          </span>
+                        </div>
+                        <input
+                          type="text"
+                          value={nameIt}
+                          onChange={(e) => setNameIt(e.target.value)}
+                          placeholder="ex: Pizza Napoletana"
+                          className="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 text-stone-900 focus:outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-stone-800 font-semibold">
+                            Nom (Anglais)
+                          </label>
+                          <span className="text-[10px] text-blue-700 bg-blue-50 px-1.5 py-0.2 rounded font-mono font-medium">
+                            Auto 🇬🇧
+                          </span>
+                        </div>
+                        <input
+                          type="text"
+                          value={nameEn}
+                          onChange={(e) => setNameEn(e.target.value)}
+                          placeholder="ex: Neapolitan Cantadora Pizza"
+                          className="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 text-stone-900 focus:outline-none"
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -1226,7 +1442,105 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
                     </label>
                   </div>
 
-                  {/* Row 7: Nutritional Macros */}
+                  {/* Row 7: Automatic Macro Calculation (Photo + Aliments) */}
+                  <div className="p-3.5 bg-gradient-to-br from-amber-50/70 via-stone-50 to-amber-50/40 rounded-2xl border border-amber-200/90 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <Sparkles className="w-4 h-4 text-amber-600" />
+                        <span className="font-bold text-stone-900 text-xs uppercase tracking-wider">
+                          Calcul automatique des macros (Photo + Aliments)
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-full font-bold">
+                        IA Vision & Nutrition
+                      </span>
+                    </div>
+
+                    <p className="text-[11px] text-stone-600 leading-snug">
+                      Saisissez les aliments du plat ci-dessous. Le système s'appuie sur <strong>la photo du plat</strong> et vos aliments pour calculer automatiquement les calories, protéines, glucides, lipides et fibres.
+                    </p>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-stone-700 mb-1">
+                        Aliments & Ingrédients du plat :
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={ingredientsInput}
+                        onChange={(e) => setIngredientsInput(e.target.value)}
+                        placeholder="Ex : 180g steak de bœuf grillé, 150g frites maison, 40g sauce béarnaise, salade verte..."
+                        className="w-full bg-white border border-stone-300 rounded-xl p-2.5 text-xs font-sans focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 flex-wrap pt-0.5">
+                      <button
+                        type="button"
+                        onClick={handleAutoCalculateMacros}
+                        disabled={isCalculatingMacros}
+                        className="py-2 px-3.5 rounded-xl bg-gradient-to-r from-[#8a3311] to-[#781524] hover:brightness-110 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer disabled:opacity-60 active:scale-[0.98]"
+                      >
+                        {isCalculatingMacros ? (
+                          <>
+                            <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            <span>Calcul des macros en cours...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                            <span>Calculer automatiquement les macros</span>
+                          </>
+                        )}
+                      </button>
+
+                      <div className="flex items-center gap-1 flex-wrap text-[10px]">
+                        <span className="text-stone-400 font-medium">Suggestions :</span>
+                        {['180g steak', '150g frites', '200g riz', '150g saumon', 'pain burger'].map((chip) => (
+                          <button
+                            key={chip}
+                            type="button"
+                            onClick={() =>
+                              setIngredientsInput((prev) =>
+                                prev.trim() ? `${prev.trim()}, ${chip}` : chip
+                              )
+                            }
+                            className="px-1.5 py-0.5 rounded bg-white hover:bg-stone-100 border border-stone-200 text-stone-600 transition cursor-pointer"
+                          >
+                            +{chip}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Summary of calculation if available */}
+                    {macroCalcSummary && (
+                      <div className="mt-2 p-2.5 bg-white rounded-xl border border-emerald-200 text-xs space-y-1.5 animate-in fade-in">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-emerald-800 flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            Macronutriments calculés et pré-remplis !
+                          </span>
+                          <span className="text-[10px] text-stone-500 font-mono">
+                            Portion estimée : {macroCalcSummary.estimatedPortion}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-stone-600">
+                          {macroCalcSummary.explanation}
+                        </p>
+                        {macroCalcSummary.items && macroCalcSummary.items.length > 0 && (
+                          <div className="text-[10px] text-stone-500 flex flex-wrap gap-x-2.5 gap-y-0.5 pt-1 border-t border-stone-100 font-mono">
+                            {macroCalcSummary.items.map((item, idx) => (
+                              <span key={idx}>
+                                • <strong>{item.name}</strong> ({item.estimatedWeight || ''}): {item.kcal} kcal (P:{item.protein}g, G:{item.carbs}g, L:{item.fat}g)
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Row 8: Nutritional Macros Inputs (Values filled or adjusted) */}
                   <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200 space-y-2">
                     <span className="font-bold text-stone-800 block text-[11px] uppercase tracking-wider">
                       Macronutriments & Calories (Par portion)
@@ -1352,16 +1666,34 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
                       <span>Ajouter une nouvelle catégorie</span>
                     </h4>
 
-                    {/* Category names */}
-                    <div>
-                      <label className="block text-stone-700 font-semibold mb-1">
-                        Nom de la catégorie (Français) *
-                      </label>
+                    {/* Category names with auto-translate */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-stone-700 font-semibold">
+                          Nom de la catégorie (Français) *
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => handleAutoTranslateCategory()}
+                          disabled={isTranslatingCat || !catNameFr.trim()}
+                          className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-[#8a3311] border border-amber-300 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer shadow-2xs disabled:opacity-50 active:scale-95"
+                          title="Traduire automatiquement la catégorie en italien et anglais"
+                        >
+                          <Sparkles className="w-3 h-3 text-amber-600" />
+                          <span>{isTranslatingCat ? 'Traduction...' : '✨ Traduire automatiquement'}</span>
+                        </button>
+                      </div>
+
                       <input
                         type="text"
                         required
                         value={catNameFr}
                         onChange={(e) => setCatNameFr(e.target.value)}
+                        onBlur={() => {
+                          if (catNameFr.trim() && (!catNameIt.trim() || !catNameEn.trim())) {
+                            handleAutoTranslateCategory();
+                          }
+                        }}
                         placeholder="ex: Pizzas Napolitaines, Vins & Apéritifs..."
                         className="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#99281a]"
                       />
@@ -1369,9 +1701,14 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div>
-                        <label className="block text-stone-700 font-semibold mb-1">
-                          Nom (Italien / VO)
-                        </label>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-stone-700 font-semibold">
+                            Nom (Italien / VO)
+                          </label>
+                          <span className="text-[9px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded font-mono font-medium">
+                            Auto 🇮🇹
+                          </span>
+                        </div>
                         <input
                           type="text"
                           value={catNameIt}
@@ -1381,9 +1718,14 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
                         />
                       </div>
                       <div>
-                        <label className="block text-stone-700 font-semibold mb-1">
-                          Nom (Anglais)
-                        </label>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-stone-700 font-semibold">
+                            Nom (Anglais)
+                          </label>
+                          <span className="text-[9px] text-blue-700 bg-blue-50 px-1.5 py-0.2 rounded font-mono font-medium">
+                            Auto 🇬🇧
+                          </span>
+                        </div>
                         <input
                           type="text"
                           value={catNameEn}

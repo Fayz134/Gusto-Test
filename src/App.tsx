@@ -12,15 +12,21 @@ import { DishDetailModal } from './components/DishDetailModal';
 import { QrTableModal } from './components/QrTableModal';
 import { AllergenFilterModal } from './components/AllergenFilterModal';
 import { AdminPortalModal } from './components/AdminPortalModal';
-import { OrderSummaryModal, OrderCartItem } from './components/OrderSummaryModal';
+import { CreatorDashboardPage } from './components/creator/CreatorDashboardPage';
 import { Toast } from './components/Toast';
 import { ScrollToTopButton } from './components/ScrollToTopButton';
+import {
+  trackSiteVisit,
+  trackRestaurantView,
+  trackDishView,
+  trackQrScan,
+} from './utils/analytics';
 
 const STORAGE_KEY = 'gusto_restaurants_catalog_v3';
 
 export default function App() {
   // Navigation & Data State
-  const [currentView, setCurrentView] = useState<'portal' | 'restaurant'>('portal');
+  const [currentView, setCurrentView] = useState<'portal' | 'restaurant' | 'creator-dashboard'>('portal');
   const [restaurants, setRestaurants] = useState<Restaurant[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -41,6 +47,20 @@ export default function App() {
   });
   const [activeRestaurantId, setActiveRestaurantId] = useState<string>('trattoria-bella-vista');
 
+  // Track site visit on mount & listen to URL hash #creator or #dashboard
+  useEffect(() => {
+    trackSiteVisit();
+    const handleHash = () => {
+      const h = window.location.hash.toLowerCase();
+      if (h === '#creator' || h === '#superadmin' || h === '#dashboard') {
+        setCurrentView('creator-dashboard');
+      }
+    };
+    handleHash();
+    window.addEventListener('hashchange', handleHash);
+    return () => window.removeEventListener('hashchange', handleHash);
+  }, []);
+
   // Keep localStorage in sync whenever restaurants change
   useEffect(() => {
     try {
@@ -55,10 +75,6 @@ export default function App() {
   const [searchHubQuery, setSearchHubQuery] = useState<string>('');
   const [activeMacroFilter, setActiveMacroFilter] = useState<MacroFilterType>('all');
   const [selectedAllergensFilter, setSelectedAllergensFilter] = useState<string[]>([]);
-
-  // Table Order State
-  const [orderItems, setOrderItems] = useState<OrderCartItem[]>([]);
-  const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [selectedDishRestaurant, setSelectedDishRestaurant] = useState<Restaurant | null>(null);
 
   // Geolocation
@@ -406,59 +422,19 @@ export default function App() {
     return matches;
   }, [restaurants, searchHubQuery, activeMacroFilter, selectedAllergensFilter, isHalalOnly, isVeganOnly]);
 
-  // Order Cart totals
-  const totalOrderCount = useMemo(() => {
-    return orderItems.reduce((acc, item) => acc + item.quantity, 0);
-  }, [orderItems]);
-
-  const totalOrderAmount = useMemo(() => {
-    return orderItems.reduce((acc, item) => acc + item.dish.price * item.quantity, 0);
-  }, [orderItems]);
-
-  // Cart operations
-  const handleAddToCart = (dish: Dish) => {
-    setOrderItems((prev) => {
-      const existing = prev.find((item) => item.dish.id === dish.id);
-      if (existing) {
-        return prev.map((item) =>
-          item.dish.id === dish.id ? { ...item, quantity: item.quantity + 1 } : item
-        );
-      }
-      return [...prev, { dish, quantity: 1 }];
-    });
-    showToast(`« ${dish.name} » ajouté à votre commande ! 🛍️`);
-  };
-
-  const handleUpdateOrderQuantity = (dishId: string, delta: number) => {
-    setOrderItems((prev) => {
-      return prev
-        .map((item) => {
-          if (item.dish.id === dishId) {
-            const newQty = item.quantity + delta;
-            return newQty > 0 ? { ...item, quantity: newQty } : null;
-          }
-          return item;
-        })
-        .filter(Boolean) as OrderCartItem[];
-    });
-  };
-
-  const handleClearOrder = () => {
-    setOrderItems([]);
-    showToast('Commande réinitialisée.');
-  };
-
   // Open a restaurant menu
   const handleOpenRestaurant = (restoId: string, dishToOpen?: Dish) => {
     setActiveRestaurantId(restoId);
     setCurrentView('restaurant');
     setIsAllergenModalOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    trackRestaurantView(restoId);
     if (dishToOpen) {
       const r = restaurants.find((item) => item.id === restoId);
       setSelectedDish(dishToOpen);
       setSelectedDishRestaurant(r || null);
       setIsDishModalOpen(true);
+      trackDishView(restoId, dishToOpen.id);
     }
   };
 
@@ -471,8 +447,52 @@ export default function App() {
   // Dish details
   const handleOpenDishDetail = (dish: Dish, resto?: Restaurant) => {
     setSelectedDish(dish);
-    setSelectedDishRestaurant(resto || activeRestaurant || null);
+    const targetResto = resto || activeRestaurant || null;
+    setSelectedDishRestaurant(targetResto);
     setIsDishModalOpen(true);
+    if (targetResto && dish) {
+      trackDishView(targetResto.id, dish.id);
+    }
+  };
+
+  // Creator Dashboard Handlers
+  const handleAddRestaurant = (newRestaurant: Restaurant) => {
+    setRestaurants((prev) => [newRestaurant, ...prev]);
+    showToast(`Établissement « ${newRestaurant.name} » ajouté avec succès ! 🎉`);
+  };
+
+  const handleUpdateRestaurant = (updatedRestaurant: Restaurant) => {
+    setRestaurants((prev) =>
+      prev.map((r) => (r.id === updatedRestaurant.id ? updatedRestaurant : r))
+    );
+    showToast(`Établissement « ${updatedRestaurant.name} » mis à jour avec succès ! ✨`);
+  };
+
+  const handleEditRestaurantMenu = (restaurantId: string) => {
+    setActiveRestaurantId(restaurantId);
+    setIsAdmin(true);
+    setIsAdminModalOpen(true);
+  };
+
+  const handleDeleteRestaurant = (restaurantId: string) => {
+    setRestaurants((prev) => {
+      const remaining = prev.filter((r) => r.id !== restaurantId);
+      return remaining.length > 0 ? remaining : INITIAL_RESTAURANTS_DATA;
+    });
+    if (activeRestaurantId === restaurantId) {
+      const remaining = restaurants.find((r) => r.id !== restaurantId);
+      if (remaining) setActiveRestaurantId(remaining.id);
+    }
+  };
+
+  const handleResetRestaurantsToDefault = () => {
+    setRestaurants(INITIAL_RESTAURANTS_DATA);
+    showToast("Le catalogue a été réinitialisé aux données d'origine.");
+  };
+
+  const handleOpenCreatorDashboard = () => {
+    setCurrentView('creator-dashboard');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // Allergen filters
@@ -551,13 +571,6 @@ export default function App() {
     if (selectedDish?.id === updatedDish.id) {
       setSelectedDish(updatedDish);
     }
-
-    // Also update dish in current cart if present
-    setOrderItems((prev) =>
-      prev.map((item) =>
-        item.dish.id === updatedDish.id ? { ...item, dish: updatedDish } : item
-      )
-    );
   };
 
   const handleDeleteDish = (dishId: string) => {
@@ -578,9 +591,6 @@ export default function App() {
       setIsDishModalOpen(false);
       setSelectedDish(null);
     }
-
-    // Remove from cart if present
-    setOrderItems((prev) => prev.filter((item) => item.dish.id !== dishId));
   };
 
   const handleAddCategory = (newCategory: MenuCategory) => {
@@ -624,6 +634,7 @@ export default function App() {
             onRequestGeolocation={handleRequestGeolocation}
             isAdmin={isAdmin}
             onOpenAdminModal={() => setIsAdminModalOpen(true)}
+            onOpenCreatorDashboard={handleOpenCreatorDashboard}
           />
 
           <HeroSearch
@@ -689,10 +700,19 @@ export default function App() {
           </main>
 
           {/* Footer */}
-          <footer className="bg-white border-t border-stone-200 py-6 px-4 text-center text-xs text-stone-500">
+          <footer className="bg-white border-t border-stone-200 py-6 px-4 text-center text-xs text-stone-500 space-y-2">
             <p>
               © 2026 Gusto France • Recherche géolocalisée et transparence nutritionnelle des restaurateurs.
             </p>
+            <div className="flex items-center justify-center gap-4 text-[11px] pt-1">
+              <button
+                type="button"
+                onClick={handleOpenCreatorDashboard}
+                className="text-stone-600 hover:text-stone-950 font-bold inline-flex items-center gap-1.5 transition cursor-pointer underline hover:scale-105"
+              >
+                👑 <span>Dashboard Fondateur & Affluences de la plateforme</span>
+              </button>
+            </div>
           </footer>
         </div>
       )}
@@ -705,9 +725,13 @@ export default function App() {
           onLanguageChange={setCurrentLang}
           onBackToPortal={handleBackToPortal}
           onOpenDishDetail={(d) => handleOpenDishDetail(d, activeRestaurant)}
-          onOpenQrModal={() => setIsQrModalOpen(true)}
+          onOpenQrModal={() => {
+            setIsQrModalOpen(true);
+            trackQrScan(activeRestaurant.id);
+          }}
           onOpenAllergenModal={() => setIsAllergenModalOpen(true)}
           onOpenAdminModal={() => setIsAdminModalOpen(true)}
+          onOpenCreatorDashboard={handleOpenCreatorDashboard}
           selectedAllergens={selectedAllergensFilter}
           onToggleAllergen={handleToggleAllergen}
           onResetAllergens={handleResetAllergens}
@@ -719,10 +743,22 @@ export default function App() {
           onToggleVegan={handleToggleVegan}
           isAdmin={isAdmin}
           onLogoutAdmin={handleAdminLogout}
-          orderCount={totalOrderCount}
-          orderTotal={totalOrderAmount}
-          onOpenOrderModal={() => setIsOrderModalOpen(true)}
           onEditDish={handleOpenAdminForEdit}
+        />
+      )}
+
+      {/* VIEW 3: CREATOR DASHBOARD PAGE (NEW DEDICATED PAGE) */}
+      {currentView === 'creator-dashboard' && (
+        <CreatorDashboardPage
+          restaurants={restaurants}
+          onAddRestaurant={handleAddRestaurant}
+          onUpdateRestaurant={handleUpdateRestaurant}
+          onDeleteRestaurant={handleDeleteRestaurant}
+          onResetRestaurantsToDefault={handleResetRestaurantsToDefault}
+          onOpenPublicRestaurant={(id) => handleOpenRestaurant(id)}
+          onEditRestaurantMenu={handleEditRestaurantMenu}
+          onBackToPortal={handleBackToPortal}
+          onShowToast={showToast}
         />
       )}
 
@@ -733,21 +769,10 @@ export default function App() {
         restaurant={selectedDishRestaurant || activeRestaurant}
         currentLang={currentLang}
         onClose={() => setIsDishModalOpen(false)}
-        onAddToCart={handleAddToCart}
-        cartCount={orderItems.find((i) => i.dish.id === selectedDish?.id)?.quantity || 0}
         isAdmin={isAdmin}
         onEditDish={handleOpenAdminForEdit}
         onUpdateDish={handleUpdateDish}
         onShowToast={showToast}
-      />
-
-      <OrderSummaryModal
-        isOpen={isOrderModalOpen}
-        items={orderItems}
-        currentLang={currentLang}
-        onClose={() => setIsOrderModalOpen(false)}
-        onUpdateQuantity={handleUpdateOrderQuantity}
-        onClearOrder={handleClearOrder}
       />
 
       <QrTableModal
@@ -792,6 +817,7 @@ export default function App() {
         onShowToast={showToast}
         initialEditingDish={editingDishForAdmin}
         onClearInitialEditingDish={() => setEditingDishForAdmin(null)}
+        onOpenCreatorDashboard={handleOpenCreatorDashboard}
       />
 
       {/* SCROLL TO TOP FLOATING BUTTON */}

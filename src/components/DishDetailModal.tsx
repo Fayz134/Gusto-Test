@@ -4,6 +4,7 @@ import { Dish, Restaurant, Language } from '../types';
 import { I18N_DICT, ALLERGENS_MASTER_LIST } from '../data/i18n';
 import { formatPrice } from '../utils/geo';
 import { processImageFile } from '../utils/imageUpload';
+import { getAutoDishName, getAutoDishDesc, getAutoCategoryName } from '../utils/translator';
 
 interface DishDetailModalProps {
   isOpen: boolean;
@@ -11,8 +12,6 @@ interface DishDetailModalProps {
   restaurant?: Restaurant | null;
   currentLang: Language;
   onClose: () => void;
-  onAddToCart?: (dish: Dish) => void;
-  cartCount?: number;
   isAdmin?: boolean;
   onEditDish?: (dish: Dish) => void;
   onUpdateDish?: (dish: Dish) => void;
@@ -25,15 +24,12 @@ export const DishDetailModal: React.FC<DishDetailModalProps> = ({
   restaurant,
   currentLang,
   onClose,
-  onAddToCart,
-  cartCount = 0,
   isAdmin = false,
   onEditDish,
   onUpdateDish,
   onShowToast,
 }) => {
   const [showWineDetails, setShowWineDetails] = useState(false);
-  const [isAdded, setIsAdded] = useState(false);
   const [isFullscreenPhoto, setIsFullscreenPhoto] = useState(false);
 
   const t = (key: string) => I18N_DICT[currentLang]?.[key] || key;
@@ -75,7 +71,6 @@ export const DishDetailModal: React.FC<DishDetailModalProps> = ({
     } else {
       document.body.style.overflow = '';
       setShowWineDetails(false);
-      setIsAdded(false);
       setIsFullscreenPhoto(false);
     }
     return () => {
@@ -100,12 +95,7 @@ export const DishDetailModal: React.FC<DishDetailModalProps> = ({
     }
     const foundCat = restaurant?.categories?.find((c) => c.id === dish.categoryId);
     if (foundCat) {
-      const catName =
-        currentLang === 'it' && foundCat.name_it
-          ? foundCat.name_it
-          : currentLang === 'en' && foundCat.name_en
-          ? foundCat.name_en
-          : foundCat.name_fr || foundCat.name;
+      const catName = getAutoCategoryName(foundCat, currentLang);
       return catName.toUpperCase();
     }
     return (dish.tags[0] || 'SPÉCIALITÉ').toUpperCase();
@@ -126,26 +116,12 @@ export const DishDetailModal: React.FC<DishDetailModalProps> = ({
 
   if (!isOpen || !dish) return null;
 
-  const dishName =
-    currentLang === 'it' && dish.name_it
-      ? dish.name_it
-      : currentLang === 'en' && dish.name_en
-      ? dish.name_en
-      : dish.name_fr || dish.name;
+  const dishName = getAutoDishName(dish, currentLang);
+  const dishDesc = getAutoDishDesc(dish, currentLang);
 
   const allergensList = ALLERGENS_MASTER_LIST.filter((a) =>
     dish.allergens.includes(a.id)
   );
-
-  const handleAddToCartClick = () => {
-    setIsAdded(true);
-    if (onAddToCart) {
-      onAddToCart(dish);
-    }
-    setTimeout(() => {
-      setIsAdded(false);
-    }, 1800);
-  };
 
   return (
     <>
@@ -372,15 +348,17 @@ export const DishDetailModal: React.FC<DishDetailModalProps> = ({
               {/* Highlighted Commentary / Description */}
               <div className="p-2 sm:p-2.5 rounded-xl bg-[#fffbf5] border-l-[3px] border-[#ea580c] shadow-2xs">
                 <p className="text-[11px] sm:text-xs italic font-serif text-[#78350f] leading-relaxed line-clamp-2 sm:line-clamp-3">
-                  « {dish.longDescription || dish.description} »
+                  « {dishDesc || dish.longDescription || dish.description} »
                 </p>
               </div>
 
               {/* SECTION: Profil Nutritionnel (4-col macro grid) */}
               <div>
-                <div className="flex items-center gap-1 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-stone-500 mb-1">
-                  <Zap className="w-3 h-3 text-[#ea580c] fill-[#ea580c]" />
-                  <span>PROFIL NUTRITIONNEL</span>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <div className="flex items-center gap-1 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-stone-500">
+                    <Zap className="w-3 h-3 text-[#ea580c] fill-[#ea580c]" />
+                    <span>PROFIL NUTRITIONNEL</span>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-4 gap-1.5 text-center">
@@ -485,7 +463,7 @@ export const DishDetailModal: React.FC<DishDetailModalProps> = ({
                 </span>
               </div>
 
-              {/* Add & Close buttons */}
+              {/* Close & Admin buttons */}
               <div className="flex items-center gap-2 flex-1 justify-end max-w-sm">
                 {isAdmin && onEditDish && (
                   <button
@@ -494,17 +472,17 @@ export const DishDetailModal: React.FC<DishDetailModalProps> = ({
                       onClose();
                       onEditDish(dish);
                     }}
-                    className="px-3 py-2.5 sm:py-3 rounded-2xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shrink-0"
+                    className="px-3.5 py-2.5 sm:py-3 rounded-2xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shrink-0"
                     title="Modifier dans l'espace privé"
                   >
                     <Pencil className="w-3.5 h-3.5 text-amber-700" />
-                    <span className="hidden sm:inline">Modifier</span>
+                    <span>Modifier</span>
                   </button>
                 )}
 
                 {isAdmin && onUpdateDish && dish && (
                   <label
-                    className="px-3 py-2.5 sm:py-3 rounded-2xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shrink-0"
+                    className="px-3.5 py-2.5 sm:py-3 rounded-2xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shrink-0"
                     title="Changer la photo manuellement"
                   >
                     <Camera className="w-3.5 h-3.5 text-amber-700" />
@@ -520,23 +498,8 @@ export const DishDetailModal: React.FC<DishDetailModalProps> = ({
 
                 <button
                   type="button"
-                  onClick={handleAddToCartClick}
-                  className="flex-1 px-4 sm:px-5 py-2.5 sm:py-3 rounded-2xl bg-[#8a3311] hover:bg-[#71290d] active:scale-[0.98] text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm transition-all cursor-pointer touch-manipulation"
-                >
-                  <span>🛍️</span>
-                  <span className="truncate">
-                    {isAdded
-                      ? '✓ Ajouté !'
-                      : cartCount > 0
-                      ? `Ajouter (${cartCount})`
-                      : 'Ajouter à la commande'}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
                   onClick={onClose}
-                  className="px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl bg-stone-100 hover:bg-stone-200 active:bg-stone-300 text-stone-700 font-bold text-xs sm:text-sm tracking-wider uppercase transition-colors cursor-pointer touch-manipulation shrink-0"
+                  className="px-5 sm:px-6 py-2.5 sm:py-3 rounded-2xl bg-stone-900 hover:bg-stone-800 active:bg-stone-950 text-white font-bold text-xs sm:text-sm tracking-wider uppercase transition-colors cursor-pointer touch-manipulation shrink-0 shadow-xs"
                 >
                   FERMER
                 </button>

@@ -4,7 +4,6 @@ import {
   Clock,
   LayoutGrid,
   BookOpen,
-  QrCode,
   ShieldAlert,
   KeyRound,
   PlusCircle,
@@ -30,10 +29,12 @@ import {
   Leaf,
   UtensilsCrossed,
   Pencil,
+  Crown,
 } from 'lucide-react';
 import { Restaurant, Language, ViewMode, Dish, MacroFilterType } from '../types';
 import { I18N_DICT, ALLERGENS_MASTER_LIST } from '../data/i18n';
 import { formatPrice } from '../utils/geo';
+import { getAutoDishName, getAutoCategoryName, getAutoDishDesc } from '../utils/translator';
 
 interface RestaurantViewProps {
   restaurant: Restaurant;
@@ -45,6 +46,7 @@ interface RestaurantViewProps {
   onOpenBillModal?: () => void;
   onOpenAllergenModal: () => void;
   onOpenAdminModal: () => void;
+  onOpenCreatorDashboard?: () => void;
   selectedAllergens: string[];
   onToggleAllergen?: (id: string) => void;
   onResetAllergens?: () => void;
@@ -56,9 +58,6 @@ interface RestaurantViewProps {
   onToggleVegan?: () => void;
   isAdmin: boolean;
   onLogoutAdmin: () => void;
-  orderCount?: number;
-  orderTotal?: number;
-  onOpenOrderModal?: () => void;
   onEditDish?: (dish: Dish) => void;
 }
 
@@ -72,6 +71,7 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
   onOpenBillModal,
   onOpenAllergenModal,
   onOpenAdminModal,
+  onOpenCreatorDashboard,
   selectedAllergens = [],
   onToggleAllergen,
   onResetAllergens,
@@ -83,9 +83,6 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
   onToggleVegan,
   isAdmin,
   onLogoutAdmin,
-  orderCount = 0,
-  orderTotal = 0,
-  onOpenOrderModal,
   onEditDish,
 }) => {
   const t = (key: string) => I18N_DICT[currentLang]?.[key] || key;
@@ -142,23 +139,17 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
   };
 
   const getDishName = (dish: Dish) => {
-    if (!dish) return '';
-    if (currentLang === 'it' && dish.name_it) return dish.name_it;
-    if (currentLang === 'en' && dish.name_en) return dish.name_en;
-    return dish.name_fr || dish.name || '';
+    return getAutoDishName(dish, currentLang);
   };
 
   const getDishDesc = (dish: Dish) => {
-    return dish.description || '';
+    return getAutoDishDesc(dish, currentLang);
   };
 
   const getCategoryName = (catId: string, defaultName: string) => {
     const cat = restaurant.categories.find((c) => c.id === catId);
     if (!cat) return defaultName;
-    if (currentLang === 'fr' && cat.name_fr) return cat.name_fr;
-    if (currentLang === 'it' && cat.name_it) return cat.name_it;
-    if (currentLang === 'en' && cat.name_en) return cat.name_en;
-    return cat.name || defaultName;
+    return getAutoCategoryName(cat, currentLang) || defaultName;
   };
 
   const getCategoryIcon = (iconName: string) => {
@@ -448,6 +439,19 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                       <LogOut className="w-3.5 h-3.5" />
                     </button>
                   </div>
+                )}
+
+                {/* Creator Dashboard Button */}
+                {onOpenCreatorDashboard && (
+                  <button
+                    onClick={onOpenCreatorDashboard}
+                    className="p-1.5 sm:px-2.5 sm:py-1 rounded-full bg-stone-900 hover:bg-black text-amber-300 font-bold border border-amber-500/40 text-[11px] flex items-center gap-1.5 transition shadow-xs cursor-pointer active:scale-95 shrink-0"
+                    title="Accès Dashboard Créateur / Super-Admin"
+                    aria-label="Dashboard Créateur"
+                  >
+                    <Crown className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span className="hidden lg:inline font-black">Créateur</span>
+                  </button>
                 )}
               </div>
             </div>
@@ -1387,7 +1391,7 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                           >
                             <span className="flex items-center gap-2">
                               <span>🍽️</span>
-                              <span>Consulter la fiche & commander</span>
+                              <span>Consulter la fiche</span>
                             </span>
                             <ChevronRight className="w-4 h-4 text-stone-400 group-hover/btn:text-white transition-transform group-hover/btn:translate-x-0.5" />
                           </button>
@@ -1457,14 +1461,7 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
           <p className="text-xs text-stone-600 mt-1">
             {restaurant.address} • {restaurant.phone}
           </p>
-          <div className="mt-4 flex items-center justify-center gap-2 flex-wrap">
-            <button
-              onClick={onOpenQrModal}
-              className="px-4 py-2.5 rounded-full bg-white hover:bg-stone-50 border border-stone-300 text-stone-700 font-semibold text-xs transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
-            >
-              <QrCode className="w-3.5 h-3.5 text-[#781524]" />
-              <span>Afficher le QR Code Table</span>
-            </button>
+          <div className="mt-4 flex items-center justify-center gap-2">
             <button
               onClick={onBackToPortal}
               className="px-6 py-2.5 rounded-full bg-stone-900 hover:bg-stone-800 text-white font-bold text-xs transition cursor-pointer shadow-md"
@@ -1475,11 +1472,7 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
         </footer>
         {/* Floating Mobile Espace Privé Quick Access Button */}
         {onOpenAdminModal && (
-          <div
-            className={`fixed ${
-              orderCount > 0 ? 'bottom-24' : 'bottom-5'
-            } right-4 z-40 sm:hidden transition-all duration-300`}
-          >
+          <div className="fixed bottom-5 right-4 z-40 sm:hidden transition-all duration-300">
             <button
               onClick={onOpenAdminModal}
               className="w-12 h-12 rounded-full bg-gradient-to-br from-[#99281a] to-[#781524] text-white border-2 border-[#dfab43]/80 shadow-xl flex items-center justify-center cursor-pointer active:scale-90 transition hover:scale-105"
@@ -1492,35 +1485,6 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                 <KeyRound className="w-5 h-5 text-amber-300" />
               )}
             </button>
-          </div>
-        )}
-
-        {/* Floating Bottom Table Order Bar */}
-        {orderCount > 0 && onOpenOrderModal && (
-          <div className="fixed bottom-5 left-4 right-4 sm:left-auto sm:right-6 z-40 max-w-md animate-in slide-in-from-bottom-5 duration-300">
-            <div className="bg-stone-900/95 backdrop-blur-md text-white p-3.5 sm:p-4 rounded-3xl shadow-2xl border border-white/10 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-[#8a3311] flex items-center justify-center text-white text-base shadow-inner">
-                  🛍️
-                </div>
-                <div>
-                  <span className="text-xs text-stone-300 block">
-                    Votre commande table
-                  </span>
-                  <span className="text-sm font-bold text-white">
-                    {orderCount} {orderCount > 1 ? 'plats' : 'plat'} • <span className="text-[#dfab43]">{formatPrice(orderTotal)}</span>
-                  </span>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={onOpenOrderModal}
-                className="px-4 py-2.5 rounded-2xl bg-white hover:bg-stone-100 text-stone-900 font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer whitespace-nowrap"
-              >
-                Consulter
-              </button>
-            </div>
           </div>
         )}
       </div>

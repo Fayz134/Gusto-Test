@@ -3,6 +3,7 @@ import { Sparkles, ArrowRight, Flame, ShieldCheck, Dumbbell, Leaf, Droplets, Zap
 import { Dish, Language, MacroFilterType } from '../types';
 import { I18N_DICT, ALLERGENS_MASTER_LIST } from '../data/i18n';
 import { formatPrice } from '../utils/geo';
+import { getAutoDishName, getAutoDishDesc } from '../utils/translator';
 
 interface GlobalDishMatch {
   restaurantId: string;
@@ -115,12 +116,8 @@ export const GlobalDishResults: React.FC<GlobalDishResultsProps> = ({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {matches.map((item) => {
-          const dishName =
-            currentLang === 'it' && item.dish.name_it
-              ? item.dish.name_it
-              : currentLang === 'en' && item.dish.name_en
-              ? item.dish.name_en
-              : item.dish.name_fr || item.dish.name;
+          const dishName = getAutoDishName(item.dish, currentLang);
+          const dishDesc = getAutoDishDesc(item.dish, currentLang);
 
           return (
             <div
@@ -156,7 +153,7 @@ export const GlobalDishResults: React.FC<GlobalDishResultsProps> = ({
                 </div>
 
                 <p className="text-xs text-stone-600 line-clamp-2">
-                  {item.dish.description}
+                  {dishDesc || item.dish.description}
                 </p>
 
                 {/* Macro breakdown with dynamic highlights based on active filter */}

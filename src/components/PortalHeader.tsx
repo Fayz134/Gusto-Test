@@ -1,5 +1,5 @@
 import React from 'react';
-import { MapPin, Sparkles, UtensilsCrossed, KeyRound, SlidersHorizontal } from 'lucide-react';
+import { MapPin, Sparkles, UtensilsCrossed, KeyRound, SlidersHorizontal, Crown } from 'lucide-react';
 import { Language } from '../types';
 import { I18N_DICT } from '../data/i18n';
 
@@ -15,6 +15,7 @@ interface PortalHeaderProps {
   onRequestGeolocation: () => void;
   isAdmin?: boolean;
   onOpenAdminModal?: () => void;
+  onOpenCreatorDashboard?: () => void;
 }
 
 export const PortalHeader: React.FC<PortalHeaderProps> = ({
@@ -24,6 +25,7 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
   onRequestGeolocation,
   isAdmin = false,
   onOpenAdminModal,
+  onOpenCreatorDashboard,
 }) => {
   const t = (key: string) => I18N_DICT[currentLang]?.[key] || key;
 
@@ -111,6 +113,21 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
               )}
               <span className="hidden sm:inline font-bold">
                 {isAdmin ? 'Gérer carte' : 'Espace Privé'}
+              </span>
+            </button>
+          )}
+
+          {/* Master Creator Dashboard Button */}
+          {onOpenCreatorDashboard && (
+            <button
+              onClick={onOpenCreatorDashboard}
+              className="p-1.5 sm:px-3 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer active:scale-95 shrink-0 bg-stone-900 hover:bg-black text-amber-300 border border-amber-500/40 hover:border-amber-400"
+              title="Accès Dashboard Créateur / Super-Admin (Affluences & Gestion)"
+              aria-label="Dashboard Créateur"
+            >
+              <Crown className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-amber-400" />
+              <span className="hidden md:inline font-black tracking-tight">
+                Dashboard Créateur
               </span>
             </button>
           )}
