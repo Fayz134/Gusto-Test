@@ -16,8 +16,10 @@ import {
   UtensilsCrossed,
   Activity,
   Layers,
+  UserCheck,
+  Globe,
 } from 'lucide-react';
-import { Restaurant } from '../../types';
+import { Restaurant, RestaurantRegistration } from '../../types';
 import {
   isCreatorAuthenticated,
   loginCreator,
@@ -27,27 +29,38 @@ import {
 import { TrafficCharts } from './TrafficCharts';
 import { RestaurantManager } from './RestaurantManager';
 import { RestaurantFormModal } from './RestaurantFormModal';
+import { RestaurantRegistrationsTab } from './RestaurantRegistrationsTab';
+import { WebDiscoveryModal } from './WebDiscoveryModal';
+import { RestaurantRegistrationModal } from '../RestaurantRegistrationModal';
 
 interface CreatorDashboardPageProps {
   restaurants: Restaurant[];
+  registrations: RestaurantRegistration[];
   onAddRestaurant: (newRestaurant: Restaurant) => void;
   onUpdateRestaurant: (updatedRestaurant: Restaurant) => void;
   onDeleteRestaurant: (restaurantId: string) => void;
   onResetRestaurantsToDefault: () => void;
   onOpenPublicRestaurant: (restaurantId: string) => void;
   onEditRestaurantMenu: (restaurantId: string) => void;
+  onValidateRegistration: (registrationId: string) => void;
+  onRejectRegistration: (registrationId: string) => void;
+  onAddRegistration: (newRegistration: RestaurantRegistration) => void;
   onBackToPortal: () => void;
   onShowToast: (message: string) => void;
 }
 
 export const CreatorDashboardPage: React.FC<CreatorDashboardPageProps> = ({
   restaurants,
+  registrations,
   onAddRestaurant,
   onUpdateRestaurant,
   onDeleteRestaurant,
   onResetRestaurantsToDefault,
   onOpenPublicRestaurant,
   onEditRestaurantMenu,
+  onValidateRegistration,
+  onRejectRegistration,
+  onAddRegistration,
   onBackToPortal,
   onShowToast,
 }) => {
@@ -58,7 +71,7 @@ export const CreatorDashboardPage: React.FC<CreatorDashboardPageProps> = ({
   const [passcodeAttempt, setPasscodeAttempt] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [authError, setAuthError] = useState('');
-  const [activeTab, setActiveTab] = useState<'affluence' | 'restaurants' | 'security'>('affluence');
+  const [activeTab, setActiveTab] = useState<'affluence' | 'restaurants' | 'registrations' | 'security'>('registrations');
 
   // Chart selection state
   const [selectedRestaurantIdForChart, setSelectedRestaurantIdForChart] = useState<string>('all');
@@ -66,6 +79,12 @@ export const CreatorDashboardPage: React.FC<CreatorDashboardPageProps> = ({
   // Restaurant Form Modal (Dual Mode: Add or Edit)
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [selectedRestaurantToEdit, setSelectedRestaurantToEdit] = useState<Restaurant | null>(null);
+
+  // Web Discovery Modal (AI from Web)
+  const [isWebDiscoveryOpen, setIsWebDiscoveryOpen] = useState(false);
+
+  // Public/Manual Registration Modal
+  const [isManualRegistrationOpen, setIsManualRegistrationOpen] = useState(false);
 
   // Security tab state
   const [currentPass, setCurrentPass] = useState('');
@@ -255,6 +274,15 @@ export const CreatorDashboardPage: React.FC<CreatorDashboardPageProps> = ({
           {/* Right Action buttons */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
+              onClick={() => setIsWebDiscoveryOpen(true)}
+              className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#99281a] via-[#781524] to-amber-700 hover:from-[#b03020] hover:to-amber-600 text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-sm active:scale-95 border border-amber-500/30"
+              title="Créer une page restaurant à partir du web avec l'intelligence artificielle"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+              <span className="hidden md:inline">Créer via le Web (IA)</span>
+            </button>
+
+            <button
               onClick={onBackToPortal}
               className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer border border-stone-700 active:scale-95"
               title="Retourner à la vue publique du portail"
@@ -286,16 +314,16 @@ export const CreatorDashboardPage: React.FC<CreatorDashboardPageProps> = ({
                 Tableau de Bord Créateur • Gusto Master v3.2
               </span>
               <h2 className="font-serif font-black text-xl sm:text-2xl lg:text-3xl text-white">
-                Supervision de l'Affluence & des Établissements
+                Supervision, Inscriptions & Création par IA
               </h2>
               <p className="text-xs sm:text-sm text-stone-300 leading-relaxed">
-                Visualisez l'affluence du site en temps réel sous forme de graphiques interactifs, suivez les scans QR code en salle et gérez ou modifiez les pages des restaurants sans saisie manuelle de coordonnées GPS.
+                Validez les inscriptions des restaurants candidats, générez instantanément une page restaurant complète depuis les données du web par IA, et suivez l'affluence en temps réel.
               </p>
             </div>
 
-            {/* Quick Summary Badges (3 items harmonious on mobile & desktop) */}
-            <div className="grid grid-cols-3 gap-2 sm:gap-3 w-full md:w-auto shrink-0">
-              <div className="bg-stone-800/80 p-2.5 sm:p-4 rounded-2xl border border-stone-700/80 text-center sm:text-left min-w-0">
+            {/* Quick Summary Badges (4 items) */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 w-full md:w-auto shrink-0">
+              <div className="bg-stone-800/80 p-2.5 sm:p-3.5 rounded-2xl border border-stone-700/80 text-center sm:text-left min-w-0">
                 <span className="text-[9px] sm:text-[10px] text-stone-400 font-bold uppercase tracking-wider block truncate">
                   Établissements
                 </span>
@@ -305,7 +333,20 @@ export const CreatorDashboardPage: React.FC<CreatorDashboardPageProps> = ({
                 <span className="text-[9px] sm:text-[10px] text-stone-400 block truncate">en ligne</span>
               </div>
 
-              <div className="bg-stone-800/80 p-2.5 sm:p-4 rounded-2xl border border-stone-700/80 text-center sm:text-left min-w-0">
+              <div
+                onClick={() => setActiveTab('registrations')}
+                className="bg-stone-800/80 p-2.5 sm:p-3.5 rounded-2xl border border-amber-500/40 text-center sm:text-left min-w-0 cursor-pointer hover:bg-stone-750 transition"
+              >
+                <span className="text-[9px] sm:text-[10px] text-amber-400 font-bold uppercase tracking-wider block truncate">
+                  Candidatures
+                </span>
+                <span className="text-lg sm:text-2xl font-black text-amber-300 font-mono">
+                  {registrations.filter((r) => r.status === 'en_attente').length}
+                </span>
+                <span className="text-[9px] sm:text-[10px] text-amber-400/80 block truncate">en attente</span>
+              </div>
+
+              <div className="bg-stone-800/80 p-2.5 sm:p-3.5 rounded-2xl border border-stone-700/80 text-center sm:text-left min-w-0">
                 <span className="text-[9px] sm:text-[10px] text-stone-400 font-bold uppercase tracking-wider block truncate">
                   Plats Totaux
                 </span>
@@ -315,7 +356,7 @@ export const CreatorDashboardPage: React.FC<CreatorDashboardPageProps> = ({
                 <span className="text-[9px] sm:text-[10px] text-stone-400 block truncate">recettes & cartes</span>
               </div>
 
-              <div className="bg-stone-800/80 p-2.5 sm:p-4 rounded-2xl border border-stone-700/80 text-center sm:text-left min-w-0">
+              <div className="bg-stone-800/80 p-2.5 sm:p-3.5 rounded-2xl border border-stone-700/80 text-center sm:text-left min-w-0">
                 <span className="text-[9px] sm:text-[10px] text-stone-400 font-bold uppercase tracking-wider block truncate">
                   Santé
                 </span>
@@ -332,15 +373,20 @@ export const CreatorDashboardPage: React.FC<CreatorDashboardPageProps> = ({
         <div className="flex items-center gap-2 border-b border-stone-200 pb-2 overflow-x-auto no-scrollbar">
           <button
             type="button"
-            onClick={() => setActiveTab('affluence')}
+            onClick={() => setActiveTab('registrations')}
             className={`px-4 py-2.5 rounded-2xl text-xs font-black transition cursor-pointer flex items-center gap-2 shrink-0 ${
-              activeTab === 'affluence'
+              activeTab === 'registrations'
                 ? 'bg-[#99281a] text-white shadow-xs'
                 : 'bg-white hover:bg-stone-200 text-stone-700 border border-stone-200'
             }`}
           >
-            <TrendingUp className="w-4 h-4" />
-            <span>Affluence & Graphiques Statistiques</span>
+            <UserCheck className="w-4 h-4" />
+            <span>Candidatures & Inscriptions</span>
+            {registrations.filter((r) => r.status === 'en_attente').length > 0 && (
+              <span className="ml-1 text-[10px] bg-amber-400 text-stone-950 font-black px-2 py-0.5 rounded-full animate-pulse">
+                {registrations.filter((r) => r.status === 'en_attente').length} en attente
+              </span>
+            )}
           </button>
 
           <button
@@ -353,10 +399,23 @@ export const CreatorDashboardPage: React.FC<CreatorDashboardPageProps> = ({
             }`}
           >
             <Building2 className="w-4 h-4" />
-            <span>Gestion des Restaurants (Modifier / Ajouter / Retirer)</span>
+            <span>Gestion des Restaurants</span>
             <span className="ml-1 text-[10px] bg-black/20 px-2 py-0.2 rounded-full">
               {restaurants.length}
             </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('affluence')}
+            className={`px-4 py-2.5 rounded-2xl text-xs font-black transition cursor-pointer flex items-center gap-2 shrink-0 ${
+              activeTab === 'affluence'
+                ? 'bg-[#99281a] text-white shadow-xs'
+                : 'bg-white hover:bg-stone-200 text-stone-700 border border-stone-200'
+            }`}
+          >
+            <TrendingUp className="w-4 h-4" />
+            <span>Affluence & Graphiques Statistiques</span>
           </button>
 
           <button
@@ -373,12 +432,16 @@ export const CreatorDashboardPage: React.FC<CreatorDashboardPageProps> = ({
           </button>
         </div>
 
-        {/* TAB 1: AFFLUENCE & GRAPHIQUES */}
-        {activeTab === 'affluence' && (
-          <TrafficCharts
-            restaurants={restaurants}
-            selectedRestaurantId={selectedRestaurantIdForChart}
-            onSelectRestaurantId={setSelectedRestaurantIdForChart}
+        {/* TAB 1: CANDIDATURES & INSCRIPTIONS RESTAURANTS */}
+        {activeTab === 'registrations' && (
+          <RestaurantRegistrationsTab
+            registrations={registrations}
+            onValidateRegistration={onValidateRegistration}
+            onRejectRegistration={onRejectRegistration}
+            onOpenWebDiscovery={() => setIsWebDiscoveryOpen(true)}
+            onOpenManualAddRegistration={() => setIsManualRegistrationOpen(true)}
+            onOpenPublicRestaurant={onOpenPublicRestaurant}
+            onShowToast={onShowToast}
           />
         )}
 
@@ -387,6 +450,7 @@ export const CreatorDashboardPage: React.FC<CreatorDashboardPageProps> = ({
           <RestaurantManager
             restaurants={restaurants}
             onOpenAddModal={handleOpenAddModal}
+            onOpenWebDiscovery={() => setIsWebDiscoveryOpen(true)}
             onEditRestaurant={handleOpenEditModal}
             onEditMenu={onEditRestaurantMenu}
             onDeleteRestaurant={onDeleteRestaurant}
@@ -400,7 +464,16 @@ export const CreatorDashboardPage: React.FC<CreatorDashboardPageProps> = ({
           />
         )}
 
-        {/* TAB 3: SÉCURITÉ & PARAMÈTRES FONDATEUR */}
+        {/* TAB 3: AFFLUENCE & GRAPHIQUES */}
+        {activeTab === 'affluence' && (
+          <TrafficCharts
+            restaurants={restaurants}
+            selectedRestaurantId={selectedRestaurantIdForChart}
+            onSelectRestaurantId={setSelectedRestaurantIdForChart}
+          />
+        )}
+
+        {/* TAB 4: SÉCURITÉ & PARAMÈTRES FONDATEUR */}
         {activeTab === 'security' && (
           <div className="max-w-xl mx-auto bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-xs space-y-6">
             <div className="flex items-center gap-3 pb-3 border-b border-stone-100">
@@ -498,9 +571,26 @@ export const CreatorDashboardPage: React.FC<CreatorDashboardPageProps> = ({
         onShowToast={onShowToast}
       />
 
+      {/* WEB DISCOVERY MODAL (AI RESTAURANT CREATION FROM WEB) */}
+      <WebDiscoveryModal
+        isOpen={isWebDiscoveryOpen}
+        onClose={() => setIsWebDiscoveryOpen(false)}
+        onAddRestaurantToSite={onAddRestaurant}
+        onOpenPublicRestaurant={onOpenPublicRestaurant}
+        onShowToast={onShowToast}
+      />
+
+      {/* RESTAURANT REGISTRATION MODAL */}
+      <RestaurantRegistrationModal
+        isOpen={isManualRegistrationOpen}
+        onClose={() => setIsManualRegistrationOpen(false)}
+        onSubmitRegistration={onAddRegistration}
+        onShowToast={onShowToast}
+      />
+
       {/* FOOTER */}
       <footer className="bg-white border-t border-stone-200 py-4 px-6 text-center text-xs text-stone-500 mt-8">
-        Gusto Platform • Console Fondateur Privée • Métriques d'affluence et supervision.
+        Gusto Platform • Console Fondateur Privée • Inscriptions, Création par IA & Supervision.
       </footer>
     </div>
   );

@@ -590,10 +590,10 @@ export function calculateMacrosFromDatabase(
 
   // Dietary highlights
   const highlights: string[] = [];
-  if (totalProt >= 30) highlights.push('⚡ Riche en Protéines (>30g)');
-  if (totalCarbs <= 20) highlights.push('🥑 Faible en Glucides (Low-Carb)');
-  if (totalKcal <= 500) highlights.push('🥗 Équilibré & Léger (<500 kcal)');
-  if (totalFiber >= 6) highlights.push('🌾 Source de Fibres');
+  if (totalProt >= 30) highlights.push('Riche en Protéines (>30g)');
+  if (totalCarbs <= 20) highlights.push('Faible en Glucides (Low-Carb)');
+  if (totalKcal <= 500) highlights.push('Équilibré & Léger (<500 kcal)');
+  if (totalFiber >= 6) highlights.push('Source de Fibres');
 
   const finalPortion = targetPortion.trim() || `${Math.round(totalWeightG)}g`;
 

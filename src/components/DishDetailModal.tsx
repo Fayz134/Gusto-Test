@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { X, Zap, Maximize2, Pencil, Camera } from 'lucide-react';
+import { X, Zap, Maximize2, Pencil, Camera, Star } from 'lucide-react';
 import { Dish, Restaurant, Language } from '../types';
 import { I18N_DICT, ALLERGENS_MASTER_LIST } from '../data/i18n';
 import { formatPrice } from '../utils/geo';
@@ -16,6 +16,7 @@ interface DishDetailModalProps {
   onEditDish?: (dish: Dish) => void;
   onUpdateDish?: (dish: Dish) => void;
   onShowToast?: (msg: string) => void;
+  onToggleDishOfTheMoment?: (dishId: string | null, enabled: boolean) => void;
 }
 
 export const DishDetailModal: React.FC<DishDetailModalProps> = ({
@@ -28,6 +29,7 @@ export const DishDetailModal: React.FC<DishDetailModalProps> = ({
   onEditDish,
   onUpdateDish,
   onShowToast,
+  onToggleDishOfTheMoment,
 }) => {
   const [showWineDetails, setShowWineDetails] = useState(false);
   const [isFullscreenPhoto, setIsFullscreenPhoto] = useState(false);
@@ -273,6 +275,12 @@ export const DishDetailModal: React.FC<DishDetailModalProps> = ({
 
                 {/* Tags row */}
                 <div className="flex items-center gap-1 mt-1 flex-wrap">
+                  {restaurant?.dishOfTheMomentEnabled && restaurant?.dishOfTheMomentId === dish.id && (
+                    <span className="text-[9px] font-black text-stone-950 bg-amber-400 border border-amber-300 px-1.5 py-0.2 rounded-md shadow-2xs flex items-center gap-0.5">
+                      <Star className="w-2.5 h-2.5 fill-stone-950 text-stone-950" />
+                      <span>{t('dishOfTheMomentBadge') || '⭐ Plat du Moment'}</span>
+                    </span>
+                  )}
                   {dish.isHalal && (
                     <span className="text-[9px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded-md">
                       🥩 Halal
@@ -296,6 +304,13 @@ export const DishDetailModal: React.FC<DishDetailModalProps> = ({
             <div className="hidden md:block mb-3">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 flex-wrap">
+                  {restaurant?.dishOfTheMomentEnabled && restaurant?.dishOfTheMomentId === dish.id && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-400 to-amber-500 text-stone-950 font-black text-[10px] tracking-wide shadow-2xs border border-amber-300">
+                      <Star className="w-3 h-3 fill-stone-950 text-stone-950" />
+                      <span>{t('dishOfTheMomentBadge') || '⭐ Plat du Moment'}</span>
+                    </span>
+                  )}
+
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-[#fff8ee] border border-[#fde68a] text-[#9a3412] text-[11px] font-extrabold tracking-wider uppercase">
                     {categoryLabel}
                   </span>
@@ -420,6 +435,8 @@ export const DishDetailModal: React.FC<DishDetailModalProps> = ({
                             ? alg.name_it
                             : currentLang === 'en'
                             ? alg.name_en
+                            : currentLang === 'es'
+                            ? (alg.name_es || alg.name)
                             : alg.name}
                         </span>
                       </span>

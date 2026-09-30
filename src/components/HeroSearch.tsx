@@ -78,7 +78,7 @@ export const HeroSearch: React.FC<HeroSearchProps> = ({
   };
 
   return (
-    <section className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pt-4 sm:pt-6 pb-2 w-full">
+    <section id="nutrition-section" className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pt-2 sm:pt-4 pb-2 w-full">
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-stone-900 via-stone-800 to-[#781524] text-white p-5 sm:p-8 shadow-xl border border-stone-700/50 space-y-4 sm:space-y-5">
         {/* Top Header Badge & Titles */}
         <div className="relative z-10 max-w-3xl space-y-2.5 sm:space-y-3">
@@ -174,7 +174,7 @@ export const HeroSearch: React.FC<HeroSearchProps> = ({
                   aria-label="Critères nutritionnels"
                 >
                   <option value="all" className="text-stone-900">
-                    ✨ {t('allDishes')}
+                    {t('allDishes')}
                   </option>
                   <option value="high-protein" className="text-stone-900">
                     {t('highProtein')}
@@ -215,78 +215,72 @@ export const HeroSearch: React.FC<HeroSearchProps> = ({
               <button
                 type="button"
                 onClick={() => onMacroFilterChange('high-protein')}
-                className={`px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-semibold transition flex items-center gap-1 cursor-pointer shrink-0 ${
+                className={`px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-semibold transition cursor-pointer shrink-0 ${
                   activeMacroFilter === 'high-protein'
                     ? 'bg-amber-400 text-stone-950 shadow-sm font-bold ring-1 ring-amber-300'
                     : 'bg-white/10 hover:bg-white/20 text-stone-200'
                 }`}
               >
-                <span>💪</span>
                 <span>{t('highProtein')}</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => onMacroFilterChange('low-cal')}
-                className={`px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-semibold transition flex items-center gap-1 cursor-pointer shrink-0 ${
+                className={`px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-semibold transition cursor-pointer shrink-0 ${
                   activeMacroFilter === 'low-cal'
                     ? 'bg-emerald-400 text-stone-950 shadow-sm font-bold ring-1 ring-emerald-300'
                     : 'bg-white/10 hover:bg-white/20 text-stone-200'
                 }`}
               >
-                <span>🥗</span>
                 <span>{t('lowCal')}</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => onMacroFilterChange('low-carb')}
-                className={`px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-semibold transition flex items-center gap-1 cursor-pointer shrink-0 ${
+                className={`px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-semibold transition cursor-pointer shrink-0 ${
                   activeMacroFilter === 'low-carb'
                     ? 'bg-cyan-400 text-stone-950 shadow-sm font-bold ring-1 ring-cyan-300'
                     : 'bg-white/10 hover:bg-white/20 text-stone-200'
                 }`}
               >
-                <span>🥑</span>
                 <span>{t('lowCarb')}</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => onMacroFilterChange('low-fat')}
-                className={`px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-semibold transition flex items-center gap-1 cursor-pointer shrink-0 ${
+                className={`px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-semibold transition cursor-pointer shrink-0 ${
                   activeMacroFilter === 'low-fat'
                     ? 'bg-blue-300 text-stone-950 shadow-sm font-bold ring-1 ring-blue-200'
                     : 'bg-white/10 hover:bg-white/20 text-stone-200'
                 }`}
               >
-                <span>💧</span>
                 <span>{t('lowFat')}</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => onMacroFilterChange('high-cal')}
-                className={`px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-semibold transition flex items-center gap-1 cursor-pointer shrink-0 ${
+                className={`px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-semibold transition cursor-pointer shrink-0 ${
                   activeMacroFilter === 'high-cal'
                     ? 'bg-orange-400 text-stone-950 shadow-sm font-bold ring-1 ring-orange-300'
                     : 'bg-white/10 hover:bg-white/20 text-stone-200'
                 }`}
               >
-                <span>⚡</span>
                 <span>{t('highCal')}</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => onMacroFilterChange('veg')}
-                className={`px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-semibold transition flex items-center gap-1 cursor-pointer shrink-0 ${
+                className={`px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-semibold transition cursor-pointer shrink-0 ${
                   activeMacroFilter === 'veg'
                     ? 'bg-lime-400 text-stone-950 shadow-sm font-bold ring-1 ring-lime-300'
                     : 'bg-white/10 hover:bg-white/20 text-stone-200'
                 }`}
               >
-                <span>🌱</span>
                 <span>{t('veg')}</span>
               </button>
             </div>
@@ -320,6 +314,8 @@ export const HeroSearch: React.FC<HeroSearchProps> = ({
                     ? alg.name_it
                     : currentLang === 'en'
                     ? alg.name_en
+                    : currentLang === 'es'
+                    ? (alg.name_es || alg.name)
                     : alg.name;
 
                 return (
@@ -396,12 +392,12 @@ export const HeroSearch: React.FC<HeroSearchProps> = ({
 
                 {activeMacroFilter !== 'all' && (
                   <span className="px-2 py-0.5 rounded-lg bg-amber-400/30 text-amber-200 border border-amber-400/40 flex items-center gap-1 text-[10px]">
-                    {activeMacroFilter === 'high-protein' && '💪 ' + t('highProtein')}
-                    {activeMacroFilter === 'low-cal' && '🥗 ' + t('lowCal')}
-                    {activeMacroFilter === 'low-carb' && '🥑 ' + t('lowCarb')}
-                    {activeMacroFilter === 'low-fat' && '💧 ' + t('lowFat')}
-                    {activeMacroFilter === 'high-cal' && '⚡ ' + t('highCal')}
-                    {activeMacroFilter === 'veg' && '🌱 ' + t('veg')}
+                    {activeMacroFilter === 'high-protein' && t('highProtein')}
+                    {activeMacroFilter === 'low-cal' && t('lowCal')}
+                    {activeMacroFilter === 'low-carb' && t('lowCarb')}
+                    {activeMacroFilter === 'low-fat' && t('lowFat')}
+                    {activeMacroFilter === 'high-cal' && t('highCal')}
+                    {activeMacroFilter === 'veg' && t('veg')}
                     <button
                       onClick={() => onMacroFilterChange('all')}
                       className="hover:text-amber-100 cursor-pointer ml-0.5"

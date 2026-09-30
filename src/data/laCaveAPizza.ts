@@ -12,6 +12,8 @@ export const LA_CAVE_A_PIZZA_AUBAGNE: Restaurant = {
   coords: { lat: 43.2928, lng: 5.5704 },
   distance: 0.3,
   avgKcal: 620,
+  dishOfTheMomentId: 'cp_t_figatelli_brousse',
+  dishOfTheMomentEnabled: true,
   openingHours: {
     isOpenNow: true,
     days: 'Lundi - Dimanche',

@@ -342,6 +342,8 @@ export const RestaurantFormModal: React.FC<RestaurantFormModalProps> = ({
       },
       categories,
       dishes,
+      dishOfTheMomentId: dishes[0]?.id,
+      dishOfTheMomentEnabled: true,
     };
 
     onSaveRestaurant(newRestaurant, false);

@@ -22,6 +22,7 @@ import { Restaurant } from '../../types';
 interface RestaurantManagerProps {
   restaurants: Restaurant[];
   onOpenAddModal: () => void;
+  onOpenWebDiscovery?: () => void;
   onEditRestaurant: (restaurant: Restaurant) => void;
   onEditMenu: (restaurantId: string) => void;
   onDeleteRestaurant: (restaurantId: string) => void;
@@ -34,6 +35,7 @@ interface RestaurantManagerProps {
 export const RestaurantManager: React.FC<RestaurantManagerProps> = ({
   restaurants,
   onOpenAddModal,
+  onOpenWebDiscovery,
   onEditRestaurant,
   onEditMenu,
   onDeleteRestaurant,
@@ -80,14 +82,25 @@ export const RestaurantManager: React.FC<RestaurantManagerProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 shrink-0">
+        <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+          {onOpenWebDiscovery && (
+            <button
+              type="button"
+              onClick={onOpenWebDiscovery}
+              className="px-3.5 py-2.5 rounded-2xl bg-gradient-to-r from-[#99281a] via-[#781524] to-amber-700 hover:from-[#b03020] hover:to-amber-600 text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-95 border border-amber-500/30"
+            >
+              <Sparkles className="w-4 h-4 text-amber-300" />
+              <span>Créer via le Web (IA)</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={onOpenAddModal}
             className="px-4 py-2.5 rounded-2xl bg-[#99281a] hover:bg-[#781524] text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-sm hover:shadow-md cursor-pointer active:scale-95"
           >
             <Plus className="w-4 h-4" />
-            <span>Ajouter un Restaurant</span>
+            <span>Ajouter manuellement</span>
           </button>
         </div>
       </div>

@@ -48,32 +48,32 @@ export const GlobalDishResults: React.FC<GlobalDishResultsProps> = ({
   if (searchQuery.trim()) {
     title = `${t('matchingDishesTitle')} « ${searchQuery} »`;
   } else if (isVeganOnly && activeMacroFilter === 'all') {
-    title = currentLang === 'fr' ? 'Plats certifiés 100% Végétaliens / Vegan 🥑' : currentLang === 'it' ? 'Piatti certificati 100% Vegani 🥑' : '100% Vegan Certified Dishes 🥑';
+    title = currentLang === 'fr' ? 'Plats certifiés 100% Végétaliens / Vegan' : currentLang === 'it' ? 'Piatti certificati 100% Vegani' : currentLang === 'es' ? 'Platos certificados 100% Veganos' : '100% Vegan Certified Dishes';
   } else if (isHalalOnly && activeMacroFilter === 'all') {
-    title = currentLang === 'fr' ? 'Plats certifiés 100% Halal 🥩' : currentLang === 'it' ? 'Piatti certificati 100% Halal 🥩' : '100% Halal Certified Dishes 🥩';
+    title = currentLang === 'fr' ? 'Plats certifiés 100% Halal' : currentLang === 'it' ? 'Piatti certificati 100% Halal' : currentLang === 'es' ? 'Platos certificados 100% Halal' : '100% Halal Certified Dishes';
   } else if (activeMacroFilter === 'high-protein') {
-    title = currentLang === 'fr' ? 'Plats les plus riches en protéines 💪' : currentLang === 'it' ? 'Piatti più ricchi di proteine 💪' : 'Highest Protein Dishes 💪';
+    title = currentLang === 'fr' ? 'Plats les plus riches en protéines' : currentLang === 'it' ? 'Piatti più ricchi di proteine' : currentLang === 'es' ? 'Platos con mayor contenido de proteínas' : 'Highest Protein Dishes';
   } else if (activeMacroFilter === 'low-cal') {
-    title = currentLang === 'fr' ? 'Plats les moins caloriques 🥗' : currentLang === 'it' ? 'Piatti con meno calorie 🥗' : 'Lowest Calorie Dishes 🥗';
+    title = currentLang === 'fr' ? 'Plats les moins caloriques' : currentLang === 'it' ? 'Piatti con meno calorie' : currentLang === 'es' ? 'Platos con menos calorías' : 'Lowest Calorie Dishes';
   } else if (activeMacroFilter === 'low-carb') {
-    title = currentLang === 'fr' ? 'Plats les plus faibles en glucides 🥑' : currentLang === 'it' ? 'Piatti a basso contenuto di carboidrati 🥑' : 'Lowest Carb Dishes 🥑';
+    title = currentLang === 'fr' ? 'Plats les plus faibles en glucides' : currentLang === 'it' ? 'Piatti a basso contenuto di carboidrati' : currentLang === 'es' ? 'Platos bajos en carbohidratos' : 'Lowest Carb Dishes';
   } else if (activeMacroFilter === 'low-fat') {
-    title = currentLang === 'fr' ? 'Plats les plus légers en matières grasses 💧' : currentLang === 'it' ? 'Piatti leggeri a bassi grassi 💧' : 'Lowest Fat Dishes 💧';
+    title = currentLang === 'fr' ? 'Plats les plus légers en matières grasses' : currentLang === 'it' ? 'Piatti leggeri a bassi grassi' : currentLang === 'es' ? 'Platos con menos grasas' : 'Lowest Fat Dishes';
   } else if (activeMacroFilter === 'high-cal') {
-    title = currentLang === 'fr' ? 'Plats les plus riches en énergie ⚡' : currentLang === 'it' ? 'Piatti ad alto valore energetico ⚡' : 'High Energy Dishes ⚡';
+    title = currentLang === 'fr' ? 'Plats les plus riches en énergie' : currentLang === 'it' ? 'Piatti ad alto valore energetico' : currentLang === 'es' ? 'Platos con mayor aporte calórico' : 'High Energy Dishes';
   } else if (activeMacroFilter === 'veg') {
-    title = currentLang === 'fr' ? 'Plats 100% végétariens 🌱' : currentLang === 'it' ? 'Piatti vegetariani 🌱' : 'Vegetarian Dishes 🌱';
+    title = currentLang === 'fr' ? 'Plats 100% végétariens' : currentLang === 'it' ? 'Piatti vegetariani' : currentLang === 'es' ? 'Platos 100% vegetarianos' : 'Vegetarian Dishes';
   } else if (activeMacroFilter === 'halal') {
-    title = currentLang === 'fr' ? 'Plats certifiés 100% Halal 🥩' : currentLang === 'it' ? 'Piatti certificati 100% Halal 🥩' : '100% Halal Certified Dishes 🥩';
+    title = currentLang === 'fr' ? 'Plats certifiés 100% Halal' : currentLang === 'it' ? 'Piatti certificati 100% Halal' : currentLang === 'es' ? 'Platos certificados 100% Halal' : '100% Halal Certified Dishes';
   } else if (selectedAllergens.length > 0) {
-    title = currentLang === 'fr' ? 'Plats certifiés sans vos allergènes 🛡️' : currentLang === 'it' ? 'Piatti privi dei tuoi allergeni 🛡️' : 'Dishes Free from Your Allergens 🛡️';
+    title = currentLang === 'fr' ? 'Plats certifiés sans vos allergènes' : currentLang === 'it' ? 'Piatti privi dei tuoi allergeni' : currentLang === 'es' ? 'Platos libres de tus alérgenos' : 'Dishes Free from Your Allergens';
   }
 
   // Active allergen names
   const excludedAllergenNames = selectedAllergens
     .map((id) => {
       const a = ALLERGENS_MASTER_LIST.find((item) => item.id === id);
-      return a ? (currentLang === 'it' ? a.name_it : currentLang === 'en' ? a.name_en : a.name) : id;
+      return a ? (currentLang === 'it' ? a.name_it : currentLang === 'en' ? a.name_en : currentLang === 'es' ? (a.name_es || a.name) : a.name) : id;
     })
     .join(', ');
 

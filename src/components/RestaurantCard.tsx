@@ -105,6 +105,12 @@ export const RestaurantCard: React.FC<RestaurantCardProps> = ({
                 <span>100% Halal</span>
               </span>
             )}
+            {restaurant.isWebVerified && (
+              <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-blue-600/95 backdrop-blur-md text-white border border-blue-400/40 shadow-xs flex items-center gap-1">
+                <ShieldCheck className="w-2.5 h-2.5 text-blue-200" />
+                <span>100% Vérifié</span>
+              </span>
+            )}
             <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-white/90 backdrop-blur-md text-stone-800">
               {restaurant.priceRange}
             </span>

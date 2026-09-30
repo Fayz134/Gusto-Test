@@ -32,6 +32,7 @@ import {
   Link as LinkIcon,
   Languages,
   Crown,
+  Star,
 } from 'lucide-react';
 import { Dish, Language, MenuCategory, Restaurant } from '../types';
 import { I18N_DICT, ALLERGENS_MASTER_LIST } from '../data/i18n';
@@ -57,6 +58,7 @@ interface AdminPortalModalProps {
   initialEditingDish?: Dish | null;
   onClearInitialEditingDish?: () => void;
   onOpenCreatorDashboard?: () => void;
+  onToggleDishOfTheMoment?: (dishId: string | null, enabled: boolean) => void;
 }
 
 const AVAILABLE_CATEGORY_ICONS = [
@@ -117,11 +119,12 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
   initialEditingDish,
   onClearInitialEditingDish,
   onOpenCreatorDashboard,
+  onToggleDishOfTheMoment,
 }) => {
   const t = (key: string) => I18N_DICT[currentLang]?.[key] || key;
 
-  // Tabs: 'list' (view all dishes, search, edit, delete), 'form' (add or edit dish), 'categories'
-  const [activeTab, setActiveTab] = useState<'list' | 'form' | 'categories'>('list');
+  // Tabs: 'list' (view all dishes, search, edit, delete), 'moment' (manage plat du moment), 'form' (add or edit dish), 'categories'
+  const [activeTab, setActiveTab] = useState<'list' | 'moment' | 'form' | 'categories'>('list');
 
   // Login state
   const [pinInput, setPinInput] = useState('');
@@ -133,11 +136,60 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('all');
   const [dishPendingDeleteId, setDishPendingDeleteId] = useState<string | null>(null);
 
+  // Dish of the moment helpers & dedicated tab filters
+  const [momentSearchQuery, setMomentSearchQuery] = useState('');
+  const [momentCategoryFilter, setMomentCategoryFilter] = useState('all');
+
+  const isMomentActive = activeRestaurant.dishOfTheMomentEnabled ?? false;
+  const currentMomentDish = useMemo(() => {
+    if (!activeRestaurant.dishOfTheMomentId) return null;
+    return activeRestaurant.dishes.find((d) => d.id === activeRestaurant.dishOfTheMomentId) || null;
+  }, [activeRestaurant.dishOfTheMomentId, activeRestaurant.dishes]);
+
+  const handleToggleMoment = (enabled: boolean) => {
+    const targetDishId = activeRestaurant.dishOfTheMomentId || activeRestaurant.dishes[0]?.id || null;
+    if (onToggleDishOfTheMoment) {
+      onToggleDishOfTheMoment(targetDishId, enabled);
+    }
+    if (enabled) {
+      const found = activeRestaurant.dishes.find((d) => d.id === targetDishId);
+      onShowToast(`Option Plat du Moment activée avec « ${found?.name_fr || found?.name || 'votre plat'} » ! ⭐`);
+    } else {
+      onShowToast('Option Plat du Moment désactivée sur la carte.');
+    }
+  };
+
+  const handleSelectMomentDish = (dishId: string) => {
+    if (!dishId) return;
+    if (onToggleDishOfTheMoment) {
+      onToggleDishOfTheMoment(dishId, true);
+    }
+    const found = activeRestaurant.dishes.find((d) => d.id === dishId);
+    if (found) {
+      onShowToast(`« ${found.name_fr || found.name} » sélectionné comme Plat du Moment (activé sur la carte) ! ⭐`);
+    }
+  };
+
+  const momentFilteredDishes = useMemo(() => {
+    return activeRestaurant.dishes.filter((dish) => {
+      const matchesCat =
+        momentCategoryFilter === 'all' || dish.categoryId === momentCategoryFilter;
+      const q = momentSearchQuery.toLowerCase().trim();
+      const matchesSearch =
+        !q ||
+        dish.name.toLowerCase().includes(q) ||
+        (dish.name_fr && dish.name_fr.toLowerCase().includes(q)) ||
+        (dish.description && dish.description.toLowerCase().includes(q));
+      return matchesCat && matchesSearch;
+    });
+  }, [activeRestaurant.dishes, momentCategoryFilter, momentSearchQuery]);
+
   // Dish form state (used for both Add and Edit)
   const [editingDishId, setEditingDishId] = useState<string | null>(null);
   const [nameFr, setNameFr] = useState('');
   const [nameIt, setNameIt] = useState('');
   const [nameEn, setNameEn] = useState('');
+  const [nameEs, setNameEs] = useState('');
   const [categoryId, setCategoryId] = useState(
     activeRestaurant.categories.find((c) => c.id !== 'all')?.id || 'pizzas-tomate'
   );
@@ -157,6 +209,7 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
   const [tagsInput, setTagsInput] = useState('Artisanal, Fait Maison');
   const [isHalal, setIsHalal] = useState(false);
   const [isVegan, setIsVegan] = useState(false);
+  const [isDishOfTheMomentForm, setIsDishOfTheMomentForm] = useState(false);
 
   // Manual Photo Upload State
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -233,7 +286,8 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
 
       if (res.name_it) setNameIt(res.name_it);
       if (res.name_en) setNameEn(res.name_en);
-      onShowToast(`Traductions générées : 🇮🇹 ${res.name_it} | 🇬🇧 ${res.name_en}`);
+      if (res.name_es) setNameEs(res.name_es);
+      onShowToast(`Traductions générées : 🇮🇹 ${res.name_it} | 🇬🇧 ${res.name_en} | 🇪🇸 ${res.name_es || ''}`);
     } catch (err) {
       console.warn('Auto translation error', err);
     } finally {
@@ -254,7 +308,8 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
 
       if (res.name_it) setCatNameIt(res.name_it);
       if (res.name_en) setCatNameEn(res.name_en);
-      onShowToast(`Catégorie traduite : 🇮🇹 ${res.name_it} | 🇬🇧 ${res.name_en}`);
+      if (res.name_es) setCatNameEs(res.name_es);
+      onShowToast(`Catégorie traduite : 🇮🇹 ${res.name_it} | 🇬🇧 ${res.name_en} | 🇪🇸 ${res.name_es || ''}`);
     } catch (err) {
       console.warn('Auto category translation error', err);
     } finally {
@@ -267,12 +322,13 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
       setIsTranslatingAll(true);
       let count = 0;
       for (const dish of activeRestaurant.dishes) {
-        if (!dish.name_it || !dish.name_en) {
+        if (!dish.name_it || !dish.name_en || !dish.name_es) {
           const autoRes = translateCulinaryLocally(dish.name_fr || dish.name, dish.description, 'dish');
           const updatedDish: Dish = {
             ...dish,
             name_it: dish.name_it || autoRes.name_it,
             name_en: dish.name_en || autoRes.name_en,
+            name_es: dish.name_es || autoRes.name_es,
           };
           onUpdateDish(updatedDish);
           count++;
@@ -321,6 +377,7 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
   const [catNameFr, setCatNameFr] = useState('');
   const [catNameIt, setCatNameIt] = useState('');
   const [catNameEn, setCatNameEn] = useState('');
+  const [catNameEs, setCatNameEs] = useState('');
   const [catIcon, setCatIcon] = useState('utensils');
 
   // Handle external edit trigger (e.g. clicking edit from dish card)
@@ -348,6 +405,7 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
     setNameFr('');
     setNameIt('');
     setNameEn('');
+    setNameEs('');
     setCategoryId(activeRestaurant.categories.find((c) => c.id !== 'all')?.id || 'pizzas-tomate');
     setPrice('16.00');
     setPortion('380g');
@@ -365,6 +423,7 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
     setTagsInput('Artisanal, Fait Maison');
     setIsHalal(false);
     setIsVegan(false);
+    setIsDishOfTheMomentForm(false);
     setIngredientsInput('');
     setMacroCalcSummary(null);
     if (onClearInitialEditingDish) onClearInitialEditingDish();
@@ -375,6 +434,7 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
     setNameFr(dish.name_fr || dish.name || '');
     setNameIt(dish.name_it || '');
     setNameEn(dish.name_en || '');
+    setNameEs(dish.name_es || '');
     setCategoryId(dish.categoryId || activeRestaurant.categories[0]?.id || 'all');
     setPrice(dish.price.toString());
     setPortion(dish.portion || '350g');
@@ -394,6 +454,10 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
     setTagsInput((dish.tags || []).join(', '));
     setIsHalal(dish.isHalal === true);
     setIsVegan(dish.isVegan === true);
+    setIsDishOfTheMomentForm(
+      activeRestaurant.dishOfTheMomentId === dish.id &&
+      (activeRestaurant.dishOfTheMomentEnabled ?? false)
+    );
   };
 
   const handleStartAddDish = () => {
@@ -426,13 +490,15 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
       tagsArray.push('Végétalien');
     }
 
-    // Auto-fill Italian and English translations if empty
+    // Auto-fill Italian, English, and Spanish translations if empty
     let finalNameIt = nameIt.trim();
     let finalNameEn = nameEn.trim();
-    if (!finalNameIt || !finalNameEn) {
+    let finalNameEs = nameEs.trim();
+    if (!finalNameIt || !finalNameEn || !finalNameEs) {
       const autoRes = translateCulinaryLocally(nameFr, description, 'dish');
       if (!finalNameIt) finalNameIt = autoRes.name_it;
       if (!finalNameEn) finalNameEn = autoRes.name_en;
+      if (!finalNameEs) finalNameEs = autoRes.name_es || '';
     }
 
     const dishPayload: Dish = {
@@ -442,6 +508,7 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
       name_fr: nameFr,
       name_it: finalNameIt,
       name_en: finalNameEn,
+      name_es: finalNameEs,
       price: Math.max(0.5, parseFloat(price) || 12.0),
       portion: portion.trim() || '300g',
       region: region.trim() || undefined,
@@ -465,9 +532,17 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
     if (editingDishId) {
       onUpdateDish(dishPayload);
       onShowToast(`Plat « ${nameFr} » mis à jour avec succès ! ✨`);
+      if (isDishOfTheMomentForm) {
+        onToggleDishOfTheMoment?.(dishPayload.id, true);
+      } else if (activeRestaurant.dishOfTheMomentId === dishPayload.id && activeRestaurant.dishOfTheMomentEnabled) {
+        onToggleDishOfTheMoment?.(dishPayload.id, false);
+      }
     } else {
       onAddDish(dishPayload);
       onShowToast(`Nouveau plat « ${nameFr} » ajouté à la carte ! 🎉`);
+      if (isDishOfTheMomentForm) {
+        onToggleDishOfTheMoment?.(dishPayload.id, true);
+      }
     }
 
     resetDishForm();
@@ -490,13 +565,15 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '');
 
-    // Auto-fill Italian and English translations if empty
+    // Auto-fill Italian, English, and Spanish translations if empty
     let finalCatIt = catNameIt.trim();
     let finalCatEn = catNameEn.trim();
-    if (!finalCatIt || !finalCatEn) {
+    let finalCatEs = catNameEs.trim();
+    if (!finalCatIt || !finalCatEn || !finalCatEs) {
       const autoRes = translateCulinaryLocally(catNameFr, '', 'category');
       if (!finalCatIt) finalCatIt = autoRes.name_it;
       if (!finalCatEn) finalCatEn = autoRes.name_en;
+      if (!finalCatEs) finalCatEs = autoRes.name_es || '';
     }
 
     const newCategory: MenuCategory = {
@@ -505,6 +582,7 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
       name_fr: catNameFr,
       name_it: finalCatIt,
       name_en: finalCatEn,
+      name_es: finalCatEs,
       iconName: catIcon,
     };
 
@@ -513,6 +591,7 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
     setCatNameFr('');
     setCatNameIt('');
     setCatNameEn('');
+    setCatNameEs('');
     setCategoryId(newCategory.id);
   };
 
@@ -690,11 +769,11 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
             </div>
 
             {/* NAVIGATION TABS */}
-            <div className="flex rounded-2xl bg-stone-100 p-1 border border-stone-200 gap-1 shrink-0">
+            <div className="flex rounded-2xl bg-stone-100 p-1 border border-stone-200 gap-1 shrink-0 flex-wrap sm:flex-nowrap">
               <button
                 type="button"
                 onClick={() => setActiveTab('list')}
-                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
                   activeTab === 'list'
                     ? 'bg-white text-[#99281a] shadow-xs'
                     : 'text-stone-600 hover:text-stone-900'
@@ -706,8 +785,38 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
 
               <button
                 type="button"
+                onClick={() => setActiveTab('moment')}
+                className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  activeTab === 'moment'
+                    ? 'bg-amber-400 text-stone-950 shadow-xs ring-1 ring-amber-500 font-extrabold'
+                    : 'text-stone-600 hover:text-stone-900 hover:bg-amber-50'
+                }`}
+              >
+                <Star
+                  className={`w-3.5 h-3.5 ${
+                    activeTab === 'moment'
+                      ? 'fill-stone-950 text-stone-950'
+                      : isMomentActive
+                      ? 'fill-amber-500 text-amber-600'
+                      : 'text-stone-400'
+                  }`}
+                />
+                <span>Plat du Moment</span>
+                <span
+                  className={`text-[9px] px-1.5 py-0.2 rounded-full font-black uppercase ${
+                    isMomentActive
+                      ? 'bg-stone-950 text-amber-300'
+                      : 'bg-stone-200 text-stone-600'
+                  }`}
+                >
+                  {isMomentActive ? 'Actif' : 'Off'}
+                </span>
+              </button>
+
+              <button
+                type="button"
                 onClick={handleStartAddDish}
-                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
                   activeTab === 'form'
                     ? 'bg-white text-[#99281a] shadow-xs'
                     : 'text-stone-600 hover:text-stone-900'
@@ -729,7 +838,7 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
               <button
                 type="button"
                 onClick={() => setActiveTab('categories')}
-                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
                   activeTab === 'categories'
                     ? 'bg-white text-[#99281a] shadow-xs'
                     : 'text-stone-600 hover:text-stone-900'
@@ -746,7 +855,92 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
                  TAB 1: DISH LIST WITH SEARCH, EDIT & DELETE CONTROLS
                  ========================================================================= */}
               {activeTab === 'list' && (
-                <div className="space-y-3">
+                <div className="space-y-3.5">
+                  {/* OPTION PLAT DU MOMENT (ACTIVER / DÉSACTIVER & CHOISIR LE PLAT) */}
+                  <div className="bg-gradient-to-r from-amber-500/15 via-amber-400/10 to-orange-500/10 border-2 border-amber-300 rounded-2xl p-3.5 sm:p-4 shadow-xs space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-amber-400 text-stone-950 flex items-center justify-center font-black text-lg shadow-xs shrink-0 ring-2 ring-amber-300">
+                          ⭐
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="text-xs sm:text-sm font-bold text-stone-950">
+                              Option « Plat du Moment » (Recommandation du Chef)
+                            </h4>
+                            <span
+                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                isMomentActive
+                                  ? 'bg-amber-400 text-stone-950 ring-1 ring-amber-400'
+                                  : 'bg-stone-200 text-stone-600'
+                              }`}
+                            >
+                              {isMomentActive ? 'Actif sur la carte' : 'Désactivé'}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-stone-600 mt-0.5">
+                            Activez ou désactivez cette option quand vous voulez et choisissez le plat à mettre à l'honneur.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* TOGGLE SWITCH: ACTIVER / DÉSACTIVER */}
+                      <div className="flex items-center gap-2.5 self-start sm:self-auto bg-white/90 border border-amber-200 px-3 py-1.5 rounded-xl shadow-2xs">
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={isMomentActive}
+                            onChange={(e) => handleToggleMoment(e.target.checked)}
+                            className="sr-only peer"
+                          />
+                          <div className="w-10 h-5 bg-stone-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                        </label>
+                        <span className="text-xs font-bold text-stone-900">
+                          {isMomentActive ? 'Activé' : 'Désactivé'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* SELECTOR & PREVIEW */}
+                    <div className="pt-2.5 border-t border-amber-200/80 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+                      <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-2">
+                        <span className="text-xs font-bold text-stone-800 whitespace-nowrap">
+                          Plat sélectionné :
+                        </span>
+                        <select
+                          value={activeRestaurant.dishOfTheMomentId || ''}
+                          onChange={(e) => handleSelectMomentDish(e.target.value)}
+                          className="bg-white border border-stone-300 rounded-xl px-3 py-1.5 text-xs text-stone-900 font-medium focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-2xs grow max-w-md cursor-pointer"
+                        >
+                          <option value="">-- Choisir un plat de la carte --</option>
+                          {activeRestaurant.dishes.map((dish) => (
+                            <option key={dish.id} value={dish.id}>
+                              {dish.name_fr || dish.name} ({formatPrice(dish.price)})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {currentMomentDish && (
+                        <div className="flex items-center gap-2 bg-white border border-amber-200 rounded-xl px-2.5 py-1.5 shadow-2xs shrink-0">
+                          <img
+                            src={currentMomentDish.image}
+                            alt={currentMomentDish.name_fr || currentMomentDish.name}
+                            className="w-8 h-8 rounded-lg object-cover"
+                          />
+                          <div className="text-[11px] leading-tight">
+                            <span className="font-bold text-stone-900 block truncate max-w-[150px]">
+                              {currentMomentDish.name_fr || currentMomentDish.name}
+                            </span>
+                            <span className="text-stone-500 font-mono text-[10px]">
+                              {formatPrice(currentMomentDish.price)} • {currentMomentDish.nutrition?.kcal} kcal
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   {/* Top bar: Quick search + Add button */}
                   <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center justify-between">
                     <div className="relative grow max-w-md">
@@ -929,6 +1123,50 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
                               {/* Right: Actions */}
                               {!isPendingDelete ? (
                                 <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0">
+                                  {/* Quick Plat du Moment Button */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const isThisDishTheMoment = activeRestaurant.dishOfTheMomentId === dish.id;
+                                      if (isThisDishTheMoment && isMomentActive) {
+                                        onToggleDishOfTheMoment?.(dish.id, false);
+                                        onShowToast('Option Plat du Moment désactivée.');
+                                      } else {
+                                        onToggleDishOfTheMoment?.(dish.id, true);
+                                        onShowToast(`« ${dish.name_fr || dish.name} » activé en Plat du Moment ! ⭐`);
+                                      }
+                                    }}
+                                    className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1 transition shadow-2xs cursor-pointer ${
+                                      activeRestaurant.dishOfTheMomentId === dish.id && isMomentActive
+                                        ? 'bg-amber-400 text-stone-950 border border-amber-500 font-bold ring-2 ring-amber-300'
+                                        : activeRestaurant.dishOfTheMomentId === dish.id
+                                        ? 'bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200'
+                                        : 'bg-white hover:bg-amber-50 text-stone-600 hover:text-amber-900 border border-stone-200'
+                                    }`}
+                                    title={
+                                      activeRestaurant.dishOfTheMomentId === dish.id && isMomentActive
+                                        ? 'Plat du moment actuellement actif. Cliquez pour le désactiver.'
+                                        : 'Choisir ce plat comme Plat du Moment et l\'activer sur la carte'
+                                    }
+                                  >
+                                    <Star
+                                      className={`w-3.5 h-3.5 ${
+                                        activeRestaurant.dishOfTheMomentId === dish.id && isMomentActive
+                                          ? 'fill-stone-950 text-stone-950'
+                                          : activeRestaurant.dishOfTheMomentId === dish.id
+                                          ? 'fill-amber-500 text-amber-600'
+                                          : 'text-stone-400'
+                                      }`}
+                                    />
+                                    <span className="hidden lg:inline">
+                                      {activeRestaurant.dishOfTheMomentId === dish.id && isMomentActive
+                                        ? 'Plat du moment (Actif)'
+                                        : activeRestaurant.dishOfTheMomentId === dish.id
+                                        ? 'Plat du moment (Inactif)'
+                                        : 'Plat du moment'}
+                                    </span>
+                                  </button>
+
                                   <button
                                     type="button"
                                     onClick={() => handleStartEditDish(dish)}
@@ -980,6 +1218,287 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
                       })}
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* =========================================================================
+                 TAB: PLAT DU MOMENT (RECOMMANDATION DU CHEF) DEDICATED PRIVATE SPACE
+                 ========================================================================= */}
+              {activeTab === 'moment' && (
+                <div className="space-y-4 animate-in fade-in duration-200">
+                  {/* Master Activation Banner */}
+                  <div className="bg-gradient-to-r from-amber-500/20 via-amber-400/15 to-orange-500/15 border-2 border-amber-400 rounded-3xl p-5 sm:p-6 shadow-sm space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-start sm:items-center gap-3.5">
+                        <div className="w-12 h-12 rounded-2xl bg-amber-400 text-stone-950 flex items-center justify-center font-black text-2xl shadow-md shrink-0 ring-4 ring-amber-300/60">
+                          ⭐
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="text-base sm:text-lg font-serif font-bold text-stone-950">
+                              Option « Plat du Moment » (Recommandation du Chef)
+                            </h3>
+                            <span
+                              className={`px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                isMomentActive
+                                  ? 'bg-amber-400 text-stone-950 ring-2 ring-amber-400'
+                                  : 'bg-stone-200 text-stone-600'
+                              }`}
+                            >
+                              {isMomentActive ? '🟢 Activé sur la carte' : '⚪ Désactivé'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-stone-600 mt-1 max-w-xl leading-relaxed">
+                            Cette option est <strong>exclusivement gérée ici dans votre espace privé</strong>. Quand elle est activée, vos clients découvrent votre plat à l'honneur avec un grand bandeau prestigieux Recommandation du Chef. Quand elle est désactivée, vos clients voient la carte normale sans aucun bandeau ni bouton.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Master Switch */}
+                      <div className="flex items-center gap-3 bg-white px-4 py-2.5 rounded-2xl border border-amber-300 shadow-sm self-start sm:self-auto shrink-0">
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={isMomentActive}
+                            onChange={(e) => handleToggleMoment(e.target.checked)}
+                            className="sr-only peer"
+                          />
+                          <div className="w-12 h-6 bg-stone-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                        </label>
+                        <div className="flex flex-col">
+                          <span className="text-xs font-black text-stone-900">
+                            {isMomentActive ? 'Option Activée' : 'Option Désactivée'}
+                          </span>
+                          <span className="text-[10px] text-stone-500">
+                            {isMomentActive ? 'Visible par les clients' : 'Invisible pour les clients'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Currently selected dish showcase */}
+                    {currentMomentDish ? (
+                      <div className="bg-white rounded-2xl p-4 border border-amber-300/80 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                        <div className="flex items-center gap-4 min-w-0">
+                          <img
+                            src={currentMomentDish.image}
+                            alt={currentMomentDish.name_fr || currentMomentDish.name}
+                            className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border border-stone-200 shadow-xs shrink-0"
+                          />
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase">
+                                Plat actuellement sélectionné
+                              </span>
+                              {activeRestaurant.categories.find((c) => c.id === currentMomentDish.categoryId) && (
+                                <span className="bg-stone-100 text-stone-700 text-[10px] font-semibold px-2 py-0.5 rounded-md">
+                                  {activeRestaurant.categories.find((c) => c.id === currentMomentDish.categoryId)?.name_fr ||
+                                   activeRestaurant.categories.find((c) => c.id === currentMomentDish.categoryId)?.name}
+                                </span>
+                              )}
+                            </div>
+                            <h4 className="font-serif font-bold text-sm sm:text-base text-stone-900 truncate">
+                              {currentMomentDish.name_fr || currentMomentDish.name}
+                            </h4>
+                            <p className="text-xs text-stone-500 line-clamp-1">
+                              {currentMomentDish.description}
+                            </p>
+                            <div className="flex items-center gap-3 text-xs font-mono text-stone-700">
+                              <span className="font-bold text-[#8a3311]">
+                                {formatPrice(currentMomentDish.price)}
+                              </span>
+                              <span>• {currentMomentDish.portion || '350g'}</span>
+                              <span>• {currentMomentDish.nutrition?.kcal || 0} kcal</span>
+                              {currentMomentDish.winePairing && (
+                                <span className="text-amber-800 font-sans italic flex items-center gap-1">
+                                  <Wine className="w-3 h-3 text-amber-700" />
+                                  {currentMomentDish.winePairing}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 self-end md:self-center shrink-0">
+                          {isMomentActive ? (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleMoment(false)}
+                              className="px-3.5 py-2 rounded-xl bg-stone-100 hover:bg-rose-50 text-stone-700 hover:text-rose-700 border border-stone-200 hover:border-rose-200 text-xs font-bold transition cursor-pointer"
+                            >
+                              Désactiver l'option
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleMoment(true)}
+                              className="px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-950 font-black text-xs transition cursor-pointer shadow-xs"
+                            >
+                              Activer maintenant ⭐
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-white/80 rounded-2xl p-4 border border-dashed border-amber-300 text-center text-xs text-stone-600">
+                        Aucun plat n'est encore sélectionné. Choisissez un plat ci-dessous pour le mettre à l'honneur.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Choose another dish from the restaurant catalog */}
+                  <div className="space-y-3 pt-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <h4 className="font-bold text-sm text-stone-900 flex items-center gap-2">
+                          <Utensils className="w-4 h-4 text-[#99281a]" />
+                          <span>Choisir le plat à mettre à l'honneur</span>
+                        </h4>
+                        <p className="text-[11px] text-stone-500">
+                          Cliquez sur « Choisir ce plat » pour le définir instantanément comme Plat du Moment.
+                        </p>
+                      </div>
+
+                      {/* Quick Search */}
+                      <div className="relative w-full sm:w-64">
+                        <Search className="w-3.5 h-3.5 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          value={momentSearchQuery}
+                          onChange={(e) => setMomentSearchQuery(e.target.value)}
+                          placeholder="Rechercher parmi les plats..."
+                          className="w-full bg-white border border-stone-300 rounded-xl pl-8 pr-3 py-1.5 text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                        />
+                        {momentSearchQuery && (
+                          <button
+                            onClick={() => setMomentSearchQuery('')}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Category Filter Pills */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+                      <button
+                        type="button"
+                        onClick={() => setMomentCategoryFilter('all')}
+                        className={`px-3 py-1 rounded-full text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+                          momentCategoryFilter === 'all'
+                            ? 'bg-stone-900 text-white'
+                            : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
+                        }`}
+                      >
+                        Tous les plats ({activeRestaurant.dishes.length})
+                      </button>
+                      {activeRestaurant.categories.map((cat) => {
+                        const count = activeRestaurant.dishes.filter((d) => d.categoryId === cat.id).length;
+                        if (count === 0) return null;
+                        return (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => setMomentCategoryFilter(cat.id)}
+                            className={`px-3 py-1 rounded-full text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+                              momentCategoryFilter === cat.id
+                                ? 'bg-[#99281a] text-white'
+                                : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
+                            }`}
+                          >
+                            {cat.name_fr || cat.name} ({count})
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Dishes Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[420px] overflow-y-auto no-scrollbar pr-1">
+                      {momentFilteredDishes.map((dish) => {
+                        const isThisSelected = activeRestaurant.dishOfTheMomentId === dish.id;
+                        const isThisActiveAndSelected = isThisSelected && isMomentActive;
+
+                        return (
+                          <div
+                            key={dish.id}
+                            className={`p-3 rounded-2xl border transition-all flex flex-col justify-between gap-3 ${
+                              isThisActiveAndSelected
+                                ? 'bg-amber-50/90 border-amber-400 ring-2 ring-amber-300 shadow-sm'
+                                : isThisSelected
+                                ? 'bg-amber-50/40 border-amber-300'
+                                : 'bg-white hover:bg-stone-50 border-stone-200 hover:border-stone-300'
+                            }`}
+                          >
+                            <div className="flex items-start gap-3 min-w-0">
+                              <img
+                                src={dish.image}
+                                alt={dish.name_fr || dish.name}
+                                className="w-14 h-14 rounded-xl object-cover border border-stone-200 shrink-0"
+                              />
+                              <div className="min-w-0 flex-1 space-y-0.5">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <h5 className="font-bold text-stone-900 text-xs truncate">
+                                    {dish.name_fr || dish.name}
+                                  </h5>
+                                  {isThisActiveAndSelected && (
+                                    <span className="bg-amber-400 text-stone-950 font-black text-[9px] px-2 py-0.2 rounded-full uppercase">
+                                      ⭐ En vedette
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[11px] text-stone-500 line-clamp-1">
+                                  {dish.description}
+                                </p>
+                                <div className="flex items-center gap-2 text-[11px] font-mono text-stone-600">
+                                  <span className="font-bold text-[#8a3311]">
+                                    {formatPrice(dish.price)}
+                                  </span>
+                                  <span>• {dish.nutrition?.kcal || 0} kcal</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-2 border-t border-stone-100">
+                              <span className="text-[10px] text-stone-400">
+                                {isThisActiveAndSelected
+                                  ? 'Actuellement affiché aux clients'
+                                  : 'Prêt à être mis à l\'honneur'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (isThisActiveAndSelected) {
+                                    handleToggleMoment(false);
+                                  } else {
+                                    handleSelectMomentDish(dish.id);
+                                  }
+                                }}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-2xs ${
+                                  isThisActiveAndSelected
+                                    ? 'bg-amber-400 hover:bg-rose-100 text-stone-950 hover:text-rose-900 border border-amber-500'
+                                    : 'bg-white hover:bg-amber-50 text-stone-800 hover:text-amber-950 border border-stone-300 hover:border-amber-300'
+                                }`}
+                              >
+                                <Star
+                                  className={`w-3.5 h-3.5 ${
+                                    isThisActiveAndSelected
+                                      ? 'fill-stone-950 text-stone-950'
+                                      : 'text-amber-500'
+                                  }`}
+                                />
+                                <span>
+                                  {isThisActiveAndSelected
+                                    ? 'Désactiver'
+                                    : 'Choisir ce plat ⭐'}
+                                </span>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -1054,12 +1573,12 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
                         title="Traduire automatiquement le nom en italien et anglais avec l'IA"
                       >
                         <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                        <span>{isTranslatingDish ? 'Traduction en cours...' : '✨ Traduire automatiquement (IT / EN)'}</span>
+                        <span>{isTranslatingDish ? 'Traduction en cours...' : '✨ Traduire automatiquement (IT / EN / ES)'}</span>
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div className="sm:col-span-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                      <div>
                         <label className="block text-stone-800 font-semibold mb-1">
                           Nom du plat (Français) *
                         </label>
@@ -1069,7 +1588,7 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
                           value={nameFr}
                           onChange={(e) => setNameFr(e.target.value)}
                           onBlur={() => {
-                            if (nameFr.trim() && (!nameIt.trim() || !nameEn.trim())) {
+                            if (nameFr.trim() && (!nameIt.trim() || !nameEn.trim() || !nameEs.trim())) {
                               handleAutoTranslateDish();
                             }
                           }}
@@ -1110,6 +1629,24 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
                           value={nameEn}
                           onChange={(e) => setNameEn(e.target.value)}
                           placeholder="ex: Neapolitan Cantadora Pizza"
+                          className="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 text-stone-900 focus:outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-stone-800 font-semibold">
+                            Nom (Espagnol)
+                          </label>
+                          <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded font-mono font-medium">
+                            Auto 🇪🇸
+                          </span>
+                        </div>
+                        <input
+                          type="text"
+                          value={nameEs}
+                          onChange={(e) => setNameEs(e.target.value)}
+                          placeholder="ex: Pizza Napolitana Cantadora"
                           className="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 text-stone-900 focus:outline-none"
                         />
                       </div>
@@ -1415,7 +1952,7 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Row 6: Dietary options (Halal & Vegan Checkboxes) */}
+                  {/* Row 6: Dietary & Highlight options (Halal, Vegan, Plat du Moment) */}
                   <div className="flex flex-wrap gap-4 p-3 bg-stone-50 rounded-2xl border border-stone-200">
                     <label className="flex items-center gap-2 cursor-pointer select-none">
                       <input
@@ -1438,6 +1975,19 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
                       />
                       <span className="font-semibold text-stone-800">
                         🥑 100% Végétalien (Vegan)
+                      </span>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer select-none bg-amber-50 px-2.5 py-1 rounded-xl border border-amber-200">
+                      <input
+                        type="checkbox"
+                        checked={isDishOfTheMomentForm}
+                        onChange={(e) => setIsDishOfTheMomentForm(e.target.checked)}
+                        className="w-4 h-4 rounded text-amber-500 focus:ring-amber-500 cursor-pointer"
+                      />
+                      <span className="font-bold text-amber-950 flex items-center gap-1 text-xs">
+                        <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-600" />
+                        <span>Mettre en Plat du Moment (Recommandation du Chef)</span>
                       </span>
                     </label>
                   </div>
@@ -1699,7 +2249,7 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
                       />
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <div>
                         <div className="flex items-center justify-between mb-1">
                           <label className="block text-stone-700 font-semibold">
@@ -1731,6 +2281,23 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
                           value={catNameEn}
                           onChange={(e) => setCatNameEn(e.target.value)}
                           placeholder="ex: Neapolitan Pizzas"
+                          className="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 text-stone-900 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-stone-700 font-semibold">
+                            Nom (Espagnol)
+                          </label>
+                          <span className="text-[9px] text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded font-mono font-medium">
+                            Auto 🇪🇸
+                          </span>
+                        </div>
+                        <input
+                          type="text"
+                          value={catNameEs}
+                          onChange={(e) => setCatNameEs(e.target.value)}
+                          placeholder="ex: Pizzas Napolitanas"
                           className="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 text-stone-900 focus:outline-none"
                         />
                       </div>

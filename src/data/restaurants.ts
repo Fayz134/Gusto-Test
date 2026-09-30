@@ -15,6 +15,8 @@ export const INITIAL_RESTAURANTS_DATA: Restaurant[] = [
     coords: { lat: 43.2925, lng: 5.5708 },
     distance: 0.2,
     avgKcal: 560,
+    dishOfTheMomentId: 'it_1',
+    dishOfTheMomentEnabled: true,
     openingHours: {
       isOpenNow: true,
       days: 'Mardi - Dimanche',

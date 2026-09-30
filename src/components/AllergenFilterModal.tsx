@@ -60,13 +60,13 @@ export const AllergenFilterModal: React.FC<AllergenFilterModalProps> = ({
     }
   };
 
-  const macroOptions: { id: MacroFilterType; label: string; icon: string }[] = [
-    { id: 'all', label: t('allDishes'), icon: '✨' },
-    { id: 'high-protein', label: t('highProtein'), icon: '💪' },
-    { id: 'low-cal', label: t('lowCal'), icon: '🥗' },
-    { id: 'low-carb', label: t('lowCarb'), icon: '🥑' },
-    { id: 'low-fat', label: t('lowFat'), icon: '💧' },
-    { id: 'high-cal', label: t('highCal'), icon: '⚡' },
+  const macroOptions: { id: MacroFilterType; label: string }[] = [
+    { id: 'all', label: t('allDishes') },
+    { id: 'high-protein', label: t('highProtein') },
+    { id: 'low-cal', label: t('lowCal') },
+    { id: 'low-carb', label: t('lowCarb') },
+    { id: 'low-fat', label: t('lowFat') },
+    { id: 'high-cal', label: t('highCal') },
   ];
 
   return (
@@ -132,7 +132,6 @@ export const AllergenFilterModal: React.FC<AllergenFilterModalProps> = ({
                 : 'text-stone-600 hover:text-stone-900'
             }`}
           >
-            <span>💪</span>
             <span>Macros</span>
           </button>
           <button
@@ -296,7 +295,6 @@ export const AllergenFilterModal: React.FC<AllergenFilterModalProps> = ({
           {(activeTab === 'all' || activeTab === 'macros') && (
             <div className="space-y-2.5 pt-2 border-t border-stone-100">
               <span className="text-xs font-bold text-stone-800 uppercase tracking-wider flex items-center gap-1.5">
-                <span>💪</span>
                 <span>{t('macroSectionTitle')}</span>
               </span>
 
@@ -315,7 +313,6 @@ export const AllergenFilterModal: React.FC<AllergenFilterModalProps> = ({
                       }`}
                     >
                       <div className="flex items-center gap-2 truncate">
-                        <span>{opt.icon}</span>
                         <span className="truncate">{opt.label}</span>
                       </div>
                       {isSelected && (
@@ -351,6 +348,8 @@ export const AllergenFilterModal: React.FC<AllergenFilterModalProps> = ({
                       ? alg.name_it
                       : currentLang === 'en'
                       ? alg.name_en
+                      : currentLang === 'es'
+                      ? (alg.name_es || alg.name)
                       : alg.name;
 
                   return (

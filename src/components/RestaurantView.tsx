@@ -30,11 +30,18 @@ import {
   UtensilsCrossed,
   Pencil,
   Crown,
+  Star,
+  MapPin,
+  Phone,
+  ExternalLink,
+  Sliders,
+  ShieldCheck,
 } from 'lucide-react';
 import { Restaurant, Language, ViewMode, Dish, MacroFilterType } from '../types';
 import { I18N_DICT, ALLERGENS_MASTER_LIST } from '../data/i18n';
 import { formatPrice } from '../utils/geo';
 import { getAutoDishName, getAutoCategoryName, getAutoDishDesc } from '../utils/translator';
+import { RestaurantCustomizerModal } from './RestaurantCustomizerModal';
 
 interface RestaurantViewProps {
   restaurant: Restaurant;
@@ -42,7 +49,7 @@ interface RestaurantViewProps {
   onLanguageChange: (lang: Language) => void;
   onBackToPortal: () => void;
   onOpenDishDetail: (dish: Dish) => void;
-  onOpenQrModal: () => void;
+  onOpenQrModal?: () => void;
   onOpenBillModal?: () => void;
   onOpenAllergenModal: () => void;
   onOpenAdminModal: () => void;
@@ -59,6 +66,9 @@ interface RestaurantViewProps {
   isAdmin: boolean;
   onLogoutAdmin: () => void;
   onEditDish?: (dish: Dish) => void;
+  onToggleDishOfTheMoment?: (dishId: string | null, enabled: boolean) => void;
+  onShowToast?: (msg: string) => void;
+  onUpdateRestaurant?: (updatedRestaurant: Restaurant) => void;
 }
 
 export const RestaurantView: React.FC<RestaurantViewProps> = ({
@@ -84,14 +94,41 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
   isAdmin,
   onLogoutAdmin,
   onEditDish,
+  onToggleDishOfTheMoment,
+  onShowToast,
+  onUpdateRestaurant,
 }) => {
   const t = (key: string) => I18N_DICT[currentLang]?.[key] || key;
+
+  const [isCustomizerOpen, setIsCustomizerOpen] = useState(false);
+
+  // Customization styling variables
+  const custom = restaurant.customization;
+  const primaryColor = custom?.primaryColor || '#781524';
+  const accentColor = custom?.accentColor || '#c58b2b';
+  const fontClass =
+    custom?.fontStyle === 'playfair'
+      ? 'font-cinzel'
+      : custom?.fontStyle === 'sans'
+      ? 'font-sans'
+      : 'font-serif';
 
   const [viewMode, setViewMode] = useState<ViewMode>('cards');
   const [activeCategoryId, setActiveCategoryId] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeFilterTab, setActiveFilterTab] = useState<'regimes' | 'allergens' | null>(null);
   const [isVegetarianOnly, setIsVegetarianOnly] = useState<boolean>(false);
+
+  // Dish of the moment memo
+  const momentDish = useMemo(() => {
+    if (restaurant.dishOfTheMomentId) {
+      const found = restaurant.dishes.find((d) => d.id === restaurant.dishOfTheMomentId);
+      if (found) return found;
+    }
+    return restaurant.dishes[0] || null;
+  }, [restaurant.dishOfTheMomentId, restaurant.dishes]);
+
+  const isMomentActive = restaurant.dishOfTheMomentEnabled ?? false;
 
   // Ensure filter panel is always closed when entering or switching restaurants
   useEffect(() => {
@@ -280,13 +317,12 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
     return restaurant.dishes.filter((d) => d.categoryId === catId && filterDishMatches(d)).length;
   };
 
-  const spotlightDish = restaurant.dishes[0];
-  const isSpotlightMatch = spotlightDish && filterDishMatches(spotlightDish);
+  const isSpotlightMatch = momentDish && filterDishMatches(momentDish);
 
   return (
     <div className="min-h-screen">
-      {/* Top sticky return bar */}
-      <div className="bg-stone-900 text-white px-4 py-2 text-xs flex items-center justify-between sticky top-0 z-50 shadow-md">
+      {/* Top breadcrumb & action bar */}
+      <div className="bg-stone-900/95 backdrop-blur-md text-white px-4 py-2.5 text-xs flex items-center justify-between relative z-20 shadow-md border-b border-stone-800">
         <button
           onClick={onBackToPortal}
           className="flex items-center gap-1.5 font-bold hover:text-amber-300 transition cursor-pointer"
@@ -298,9 +334,31 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
           <span className="text-stone-300 hidden sm:inline">
             {restaurant.name}
           </span>
-          <span className="bg-[#99281a] text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+          {restaurant.phone && custom?.showPhoneBadge !== false && (
+            <a
+              href={`tel:${restaurant.phone.replace(/[^0-9+]/g, '')}`}
+              className="hidden lg:inline-flex items-center gap-1.5 text-stone-300 hover:text-emerald-400 transition text-[11px] font-medium"
+              title={`Appeler ${restaurant.name} au ${restaurant.phone}`}
+            >
+              <Phone className="w-3 h-3 text-emerald-400" />
+              <span>{restaurant.phone}</span>
+            </a>
+          )}
+          <span
+            className="text-white text-[10px] font-bold px-2 py-0.5 rounded-full"
+            style={{ backgroundColor: primaryColor }}
+          >
             {restaurant.cuisine}
           </span>
+          <button
+            type="button"
+            onClick={() => setIsCustomizerOpen(true)}
+            className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/10 hover:bg-white/20 text-amber-300 hover:text-amber-200 text-[11px] font-semibold transition cursor-pointer border border-white/20 shadow-xs"
+            title="Personnaliser la page du restaurant"
+          >
+            <Sliders className="w-3 h-3" />
+            <span>Personnaliser</span>
+          </button>
         </div>
       </div>
 
@@ -312,39 +370,83 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
       {/* Main restaurant container */}
       <div className="min-h-screen pt-2 md:pt-4 pb-28 max-w-7xl mx-auto relative z-10 bg-[#faf7f2]/95 backdrop-blur-md shadow-2xl border-x border-stone-300/80">
         
+        {/* Optional Custom Hero Banner */}
+        {custom?.showBannerHero !== false && (custom?.bannerUrl || restaurant.banner) && (
+          <div
+            className={`relative w-full overflow-hidden ${
+              custom?.bannerHeight === 'compact'
+                ? 'h-32 sm:h-40'
+                : custom?.bannerHeight === 'tall'
+                ? 'h-64 sm:h-80'
+                : 'h-44 sm:h-56'
+            } transition-all duration-300 group border-b border-stone-200`}
+          >
+            <img
+              src={custom?.bannerUrl || restaurant.banner}
+              alt={restaurant.name}
+              className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-700"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/20" />
+            <div className="absolute bottom-3 left-4 sm:left-6 right-4 flex items-end justify-between gap-3 text-white">
+              <div className="drop-shadow-md">
+                <span
+                  className="text-[10px] font-mono uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-black/50 backdrop-blur-xs border border-white/20 inline-block mb-1 font-bold"
+                  style={{ color: accentColor }}
+                >
+                  {restaurant.cuisine}
+                </span>
+                <p className="text-xs sm:text-sm font-serif italic text-white/90 max-w-lg line-clamp-1">
+                  « {restaurant.tagline || 'Excellence & Authenticité'} »
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCustomizerOpen(true)}
+                className="px-3 py-1.5 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md text-white border border-white/30 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-lg hover:scale-105 active:scale-95 shrink-0"
+                title="Modifier la bannière et le style"
+              >
+                <Sliders className="w-3.5 h-3.5 text-amber-300" />
+                <span className="hidden sm:inline">Changer l'ambiance</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Header - on mobile it scrolls away naturally so search bar does not descend with scroll */}
-        <header className="relative md:sticky md:top-8 z-30 bg-[#faf7f2]/95 backdrop-blur-xl border-b border-stone-200/90 shadow-xs transition-all duration-300">
+        <header className="relative md:sticky md:top-20 z-30 bg-[#faf7f2]/95 backdrop-blur-xl border-b border-stone-200/90 shadow-xs transition-all duration-300">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-3">
             
             {/* Upper control bar */}
             <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-stone-200/70 text-xs">
               
               {/* Open status */}
-              <div className="flex items-center gap-2 font-mono text-[11px] tracking-wider uppercase text-stone-600">
-                <span
-                  className={`w-2.5 h-2.5 rounded-full ${
-                    restaurant.openingHours.isOpenNow
-                      ? 'bg-emerald-600 shadow-[0_0_10px_#16a34a] animate-pulse'
-                      : 'bg-rose-600'
-                  }`}
-                ></span>
-                <span
-                  className={
-                    restaurant.openingHours.isOpenNow
-                      ? 'text-emerald-800 font-bold'
-                      : 'text-rose-700 font-bold'
-                  }
-                >
-                  {restaurant.openingHours.isOpenNow ? t('open') : t('closed')}
-                </span>
-                <span className="text-stone-300">•</span>
-                <span className="text-stone-600 hidden sm:inline-flex items-center gap-1 font-sans">
-                  <Clock className="w-3.5 h-3.5 text-[#99281a]" />
-                  <span>
-                    {restaurant.openingHours.days} : {restaurant.openingHours.lunch} & {restaurant.openingHours.dinner}
+              {custom?.showHoursBadge !== false && (
+                <div className="flex items-center gap-2 font-mono text-[11px] tracking-wider uppercase text-stone-600">
+                  <span
+                    className={`w-2.5 h-2.5 rounded-full ${
+                      restaurant.openingHours.isOpenNow
+                        ? 'bg-emerald-600 shadow-[0_0_10px_#16a34a] animate-pulse'
+                        : 'bg-rose-600'
+                    }`}
+                  ></span>
+                  <span
+                    className={
+                      restaurant.openingHours.isOpenNow
+                        ? 'text-emerald-800 font-bold'
+                        : 'text-rose-700 font-bold'
+                    }
+                  >
+                    {restaurant.openingHours.isOpenNow ? t('open') : t('closed')}
                   </span>
-                </span>
-              </div>
+                  <span className="text-stone-300">•</span>
+                  <span className="text-stone-600 hidden sm:inline-flex items-center gap-1 font-sans">
+                    <Clock className="w-3.5 h-3.5" style={{ color: primaryColor }} />
+                    <span>
+                      {restaurant.openingHours.days} : {restaurant.openingHours.lunch} & {restaurant.openingHours.dinner}
+                    </span>
+                  </span>
+                </div>
+              )}
 
               {/* Action tools */}
               <div className="flex items-center gap-2 flex-wrap">
@@ -355,9 +457,10 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                     onClick={() => setViewMode('cards')}
                     className={`px-3 py-1 rounded-full text-[11px] sm:text-xs flex items-center gap-1.5 transition cursor-pointer ${
                       viewMode === 'cards'
-                        ? 'bg-white text-[#99281a] shadow-xs font-bold'
+                        ? 'bg-white shadow-xs font-bold'
                         : 'text-stone-600 hover:text-stone-900 font-medium'
                     }`}
+                    style={viewMode === 'cards' ? { color: primaryColor } : undefined}
                   >
                     <LayoutGrid className="w-3.5 h-3.5" />
                     <span>{t('viewPhotos')}</span>
@@ -366,9 +469,10 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                     onClick={() => setViewMode('classic')}
                     className={`px-3 py-1 rounded-full text-[11px] sm:text-xs flex items-center gap-1.5 transition cursor-pointer ${
                       viewMode === 'classic'
-                        ? 'bg-white text-[#99281a] shadow-xs font-bold'
+                        ? 'bg-white shadow-xs font-bold'
                         : 'text-stone-600 hover:text-stone-900 font-medium'
                     }`}
+                    style={viewMode === 'classic' ? { color: primaryColor } : undefined}
                   >
                     <BookOpen className="w-3.5 h-3.5" />
                     <span className="font-bold">Carte Élégante</span>
@@ -384,6 +488,7 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                   <option value="fr">🇫🇷 FR</option>
                   <option value="it">🇮🇹 IT</option>
                   <option value="en">🇬🇧 EN</option>
+                  <option value="es">🇪🇸 ES</option>
                 </select>
 
                 {/* Allergen Modal Filter */}
@@ -391,93 +496,150 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                   onClick={onOpenAllergenModal}
                   className={`px-2.5 py-1 rounded-full border flex items-center gap-1.5 transition text-[11px] font-bold shadow-xs cursor-pointer ${
                     selectedAllergens.length > 0
-                      ? 'bg-[#99281a] text-white border-[#99281a] animate-pulse'
+                      ? 'text-white animate-pulse'
                       : 'bg-white border-stone-300 text-stone-700 hover:bg-stone-100'
                   }`}
+                  style={
+                    selectedAllergens.length > 0
+                      ? { backgroundColor: primaryColor, borderColor: primaryColor }
+                      : undefined
+                  }
                 >
                   <ShieldAlert
-                    className={`w-3.5 h-3.5 ${
-                      selectedAllergens.length > 0 ? 'text-white' : 'text-[#99281a]'
-                    }`}
+                    className="w-3.5 h-3.5"
+                    style={{ color: selectedAllergens.length > 0 ? '#ffffff' : primaryColor }}
                   />
                   <span className="hidden sm:inline">{t('allergens')}</span>
                   {selectedAllergens.length > 0 && (
-                    <span className="bg-white text-[#99281a] font-extrabold text-[9px] px-1.5 py-0.2 rounded-full">
+                    <span
+                      className="bg-white font-extrabold text-[9px] px-1.5 py-0.2 rounded-full"
+                      style={{ color: primaryColor }}
+                    >
                       {selectedAllergens.length}
                     </span>
                   )}
                 </button>
 
-                {/* Admin Portal (Espace Privé) */}
-                {!isAdmin ? (
-                  <button
-                    onClick={onOpenAdminModal}
-                    className="p-1.5 sm:px-3 sm:py-1 rounded-full bg-[#781524] hover:bg-[#99281a] text-white font-bold border border-amber-400/40 text-[11px] flex items-center gap-1.5 transition shadow-xs cursor-pointer active:scale-95 shrink-0"
-                    title="Accéder à l'Espace Privé"
-                    aria-label="Accéder à l'Espace Privé"
-                  >
-                    <KeyRound className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-                    <span className="hidden sm:inline font-bold">{t('privateSpace')}</span>
-                  </button>
-                ) : (
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      onClick={onOpenAdminModal}
-                      className="p-1.5 sm:px-3 sm:py-1 rounded-full bg-[#99281a] hover:bg-[#781524] text-white font-bold text-[11px] flex items-center gap-1.5 shadow-xs transition cursor-pointer"
-                      title="Gérer la carte"
-                      aria-label="Gérer la carte"
-                    >
-                      <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" />
-                      <span className="hidden sm:inline">Gérer la carte</span>
-                    </button>
-                    <button
-                      onClick={onLogoutAdmin}
-                      className="p-1.5 rounded-full bg-rose-50 hover:bg-rose-600 hover:text-white border border-rose-200 text-rose-600 transition cursor-pointer"
-                      title={t('logout')}
-                      aria-label={t('logout')}
-                    >
-                      <LogOut className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
-
-                {/* Creator Dashboard Button */}
-                {onOpenCreatorDashboard && (
-                  <button
-                    onClick={onOpenCreatorDashboard}
-                    className="p-1.5 sm:px-2.5 sm:py-1 rounded-full bg-stone-900 hover:bg-black text-amber-300 font-bold border border-amber-500/40 text-[11px] flex items-center gap-1.5 transition shadow-xs cursor-pointer active:scale-95 shrink-0"
-                    title="Accès Dashboard Créateur / Super-Admin"
-                    aria-label="Dashboard Créateur"
-                  >
-                    <Crown className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span className="hidden lg:inline font-black">Créateur</span>
-                  </button>
-                )}
+                {/* Personnaliser Page Button */}
+                <button
+                  type="button"
+                  onClick={() => setIsCustomizerOpen(true)}
+                  className="px-2.5 py-1 rounded-full border border-amber-300/80 hover:border-amber-400 bg-amber-50 hover:bg-amber-100/90 text-amber-950 flex items-center gap-1.5 transition text-[11px] font-bold shadow-xs cursor-pointer"
+                  title="Personnaliser les couleurs, la bannière, le titre et l'ambiance"
+                >
+                  <Sliders className="w-3.5 h-3.5 text-amber-700" />
+                  <span>Personnaliser</span>
+                </button>
               </div>
             </div>
 
             {/* Restaurant Brand Title & In-menu search */}
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pt-3">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-[#781524] text-[#dfab43] border border-[#c58b2b]/40 flex items-center justify-center font-cinzel font-bold text-xl shadow-md shrink-0">
-                  {restaurant.name.substring(0, 2).toUpperCase()}
-                </div>
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pt-3">
+              <div className="flex items-start sm:items-center gap-3.5">
+                {custom?.logoType === 'image' && custom?.logoUrl ? (
+                  <div
+                    className="w-13 h-13 sm:w-16 sm:h-16 rounded-2xl bg-white border flex items-center justify-center shadow-md shrink-0 mt-0.5 sm:mt-0 p-1 overflow-hidden"
+                    style={{ borderColor: accentColor }}
+                  >
+                    <img
+                      src={custom.logoUrl}
+                      alt={restaurant.name}
+                      className="w-full h-full object-contain rounded-xl"
+                    />
+                  </div>
+                ) : (
+                  <div
+                    className="w-13 h-13 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center font-bold text-xl sm:text-2xl shadow-md shrink-0 mt-0.5 sm:mt-0 font-cinzel"
+                    style={{
+                      backgroundColor: custom?.logoBgColor || primaryColor,
+                      color: custom?.logoTextColor || accentColor,
+                      border: `1.5px solid ${accentColor}80`,
+                    }}
+                  >
+                    {restaurant.name.substring(0, 2).toUpperCase()}
+                  </div>
+                )}
                 <div>
-                  <h1 className="text-2xl sm:text-3xl lg:text-4xl font-serif font-bold text-stone-900 tracking-tight">
-                    {restaurant.name}
-                  </h1>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-xs font-serif italic text-[#99281a] font-semibold tracking-wide">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h1 className={`text-2xl sm:text-3xl lg:text-4xl ${fontClass} font-bold text-stone-900 tracking-tight`}>
+                      {restaurant.name}
+                    </h1>
+                    {restaurant.isHalalCertified && custom?.showHalalBadge !== false && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-600 text-white shadow-xs inline-flex items-center gap-1">
+                        <span>🥩</span>
+                        <span>100% Halal</span>
+                      </span>
+                    )}
+                    {restaurant.isWebVerified && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-600 text-white shadow-xs inline-flex items-center gap-1" title="Informations officielles vérifiées via Google Search Grounding">
+                        <ShieldCheck className="w-3 h-3 text-blue-200" />
+                        <span>100% Vérifié Web</span>
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setIsCustomizerOpen(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white hover:bg-amber-50 text-stone-800 hover:text-amber-900 border border-stone-300 hover:border-amber-400 shadow-2xs transition group text-xs cursor-pointer font-bold shrink-0"
+                      title="Personnaliser les informations, le style, la bannière et le thème du restaurant"
+                    >
+                      <Sliders className="w-3.5 h-3.5 text-amber-600 group-hover:rotate-45 transition-transform" />
+                      <span>Personnaliser la page</span>
+                    </button>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                    <span
+                      className="text-xs font-serif italic font-semibold tracking-wide"
+                      style={{ color: primaryColor }}
+                    >
                       {restaurant.tagline || t('tagline')}
                     </span>
                     <span className="text-stone-300 hidden sm:inline">•</span>
                     <span className="text-[11px] text-stone-500 font-mono hidden sm:inline">
                       {restaurant.cuisine}
                     </span>
-                    {restaurant.isHalalCertified && (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-600 text-white shadow-xs inline-flex items-center gap-1">
-                        <span>🥩</span>
-                        <span>100% Halal</span>
+                    {restaurant.priceRange && (
+                      <>
+                        <span className="text-stone-300 hidden sm:inline">•</span>
+                        <span className="text-[11px] text-stone-600 font-mono hidden sm:inline">
+                          {restaurant.priceRange}
+                        </span>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Informations du restaurant : Adresse et Téléphone */}
+                  <div className="flex flex-wrap items-center gap-2 mt-2 pt-0.5">
+                    {restaurant.address && custom?.showAddressBadge !== false && (
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                          restaurant.name + ' ' + restaurant.address
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white hover:bg-stone-100 text-stone-700 hover:text-stone-900 border border-stone-300/80 shadow-2xs transition group text-xs cursor-pointer font-medium"
+                        title="Ouvrir l'adresse dans Google Maps (Itinéraire)"
+                      >
+                        <MapPin className="w-3.5 h-3.5 shrink-0 group-hover:scale-110 transition-transform" style={{ color: primaryColor }} />
+                        <span>{restaurant.address}</span>
+                        <ExternalLink className="w-2.5 h-2.5 text-stone-400 opacity-60 group-hover:opacity-100" />
+                      </a>
+                    )}
+
+                    {restaurant.phone && custom?.showPhoneBadge !== false && (
+                      <a
+                        href={`tel:${restaurant.phone.replace(/[^0-9+]/g, '')}`}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300/80 shadow-2xs transition group text-xs cursor-pointer font-bold"
+                        title={`Appeler ${restaurant.name} au ${restaurant.phone}`}
+                      >
+                        <Phone className="w-3.5 h-3.5 text-emerald-700 shrink-0 group-hover:scale-110 transition-transform" />
+                        <span>{restaurant.phone}</span>
+                      </a>
+                    )}
+
+                    {restaurant.distance !== undefined && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-stone-100 text-stone-600 border border-stone-200 text-[11px] font-medium">
+                        <span>📍 À {restaurant.distance} km</span>
                       </span>
                     )}
                   </div>
@@ -494,7 +656,8 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Rechercher un plat, ingrédient..."
-                    className="w-full bg-white border border-stone-300 rounded-full pl-9 pr-8 py-2 text-xs text-stone-900 placeholder-stone-400 focus:outline-none focus:border-[#99281a] focus:ring-2 focus:ring-[#99281a]/20 shadow-xs"
+                    className="w-full bg-white border border-stone-300 rounded-full pl-9 pr-8 py-2 text-xs text-stone-900 placeholder-stone-400 focus:outline-none shadow-xs"
+                    style={{ focusBorderColor: primaryColor }}
                   />
                   {searchQuery && (
                     <button
@@ -673,6 +836,8 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                             ? alg.name_it
                             : currentLang === 'en'
                             ? alg.name_en
+                            : currentLang === 'es'
+                            ? (alg.name_es || alg.name)
                             : alg.name;
 
                         return (
@@ -830,7 +995,7 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                           }`}
                         >
                           <div className="flex items-center justify-between w-full">
-                            <span className="text-base">💪</span>
+                            <span className="text-xs font-black uppercase tracking-wider text-amber-700">PROTÉINES</span>
                             {isHighProtein && <Check className="w-3.5 h-3.5 text-stone-950" />}
                           </div>
                           <div className="mt-1">
@@ -854,7 +1019,7 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                           }`}
                         >
                           <div className="flex items-center justify-between w-full">
-                            <span className="text-base">🥗</span>
+                            <span className="text-xs font-black uppercase tracking-wider text-teal-700">CALORIES</span>
                             {isLowCal && <Check className="w-3.5 h-3.5 text-white" />}
                           </div>
                           <div className="mt-1">
@@ -878,7 +1043,7 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                           }`}
                         >
                           <div className="flex items-center justify-between w-full">
-                            <span className="text-base">🥑</span>
+                            <span className="text-xs font-black uppercase tracking-wider text-cyan-700">GLUCIDES</span>
                             {isLowCarb && <Check className="w-3.5 h-3.5 text-white" />}
                           </div>
                           <div className="mt-1">
@@ -902,7 +1067,7 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                           }`}
                         >
                           <div className="flex items-center justify-between w-full">
-                            <span className="text-base">💧</span>
+                            <span className="text-xs font-black uppercase tracking-wider text-sky-700">LIPIDES</span>
                             {isLowFat && <Check className="w-3.5 h-3.5 text-white" />}
                           </div>
                           <div className="mt-1">
@@ -916,6 +1081,33 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Custom Announcement banner */}
+            {custom?.showAnnouncement && custom?.announcement && (
+              <div
+                className="mt-3.5 mb-1 px-4 py-2.5 rounded-2xl flex items-center justify-between gap-3 text-xs shadow-2xs border transition-all"
+                style={{
+                  backgroundColor: `${primaryColor}0d`,
+                  borderColor: `${accentColor}70`,
+                }}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="text-base shrink-0">{custom?.announcementEmoji || '📢'}</span>
+                  <p className="font-medium text-stone-800 truncate">
+                    {custom?.announcement}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsCustomizerOpen(true)}
+                  className="text-[11px] font-bold hover:underline shrink-0 cursor-pointer flex items-center gap-1"
+                  style={{ color: primaryColor }}
+                >
+                  <Sliders className="w-3 h-3" />
+                  <span>Personnaliser</span>
+                </button>
               </div>
             )}
           </div>
@@ -932,9 +1124,14 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                     onClick={() => setActiveCategoryId(cat.id)}
                     className={`px-3.5 py-1.5 rounded-full text-xs whitespace-nowrap flex items-center gap-2 transition shrink-0 shadow-2xs cursor-pointer ${
                       activeCategoryId === cat.id
-                        ? 'bg-[#781524] text-white font-bold shadow-md ring-2 ring-[#c58b2b]/50 scale-105'
-                        : 'bg-white text-stone-700 hover:text-[#781524] border border-stone-200 hover:bg-stone-50'
+                        ? 'text-white font-bold shadow-md scale-105'
+                        : 'bg-white text-stone-700 hover:text-stone-900 border border-stone-200 hover:bg-stone-50'
                     }`}
+                    style={
+                      activeCategoryId === cat.id
+                        ? { backgroundColor: primaryColor, boxShadow: `0 4px 12px ${primaryColor}40` }
+                        : undefined
+                    }
                   >
                     <span>{getCategoryIcon(cat.iconName)}</span>
                     <span>{getCategoryName(cat.id, cat.name)}</span>
@@ -954,67 +1151,102 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
           </div>
         </header>
 
-        {/* Chef Spotlight Banner - only if compatible with active filters and not searching */}
-        {isSpotlightMatch && activeCategoryId === 'all' && !searchQuery && (
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-5">
-            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#781524] via-[#99281a] to-[#1e4e2b] text-white p-5 sm:p-6 shadow-classic border border-[#c58b2b]/30">
-              <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-5">
-                <div className="space-y-2 max-w-2xl">
-                  <div className="flex items-center gap-2">
-                    <span className="bg-[#c58b2b] text-stone-950 font-black text-[10px] uppercase px-2.5 py-0.5 rounded-full tracking-wider font-cinzel shadow-sm">
-                      {t('dishOfDay')}
-                    </span>
-                    <span className="text-xs text-amber-200 italic font-serif">
-                      {t('chefSuggestion')}
-                    </span>
-                  </div>
-                  <h2 className="text-xl sm:text-2xl font-serif font-bold text-white tracking-wide">
-                    {getDishName(spotlightDish)}
-                  </h2>
-                  <p className="text-xs text-stone-200/90 leading-relaxed font-sans line-clamp-2">
-                    {getDishDesc(spotlightDish)}
-                  </p>
+        {/* =========================================================================
+            PLAT DU MOMENT (RECOMMANDATION DU CHEF) - OPTION ACTIVABLE / DÉSACTIVABLE
+            ========================================================================= */}
+        {isMomentActive && isSpotlightMatch && activeCategoryId === 'all' && !searchQuery && (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-5 animate-in fade-in duration-300">
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#781524] via-[#99281a] to-[#1e4e2b] text-white p-5 sm:p-7 shadow-classic border-2 border-[#c58b2b]/50 group">
+              {/* Background glow effects */}
+              <div className="absolute top-0 right-0 -mr-20 -mt-20 w-72 h-72 rounded-full bg-amber-400/10 blur-3xl pointer-events-none" />
+              <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-56 h-56 rounded-full bg-orange-400/10 blur-2xl pointer-events-none" />
 
-                  <div className="flex flex-wrap items-center gap-3 pt-1 text-xs">
-                    <span className="font-serif text-lg font-bold text-[#dfab43]">
-                      {formatPrice(spotlightDish.price)}
-                    </span>
-                    {spotlightDish.winePairing && (
-                      <span className="bg-white/15 px-2.5 py-1 rounded-md text-[11px] flex items-center gap-1 backdrop-blur-sm">
-                        <Wine className="w-3.5 h-3.5 text-amber-300" />
-                        <span>{spotlightDish.winePairing}</span>
+              <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                {/* Left: Dish thumbnail and details */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 min-w-0 flex-1">
+                  <div
+                    onClick={() => onOpenDishDetail(momentDish)}
+                    className="relative w-full sm:w-44 h-44 sm:h-36 rounded-2xl overflow-hidden shadow-lg border-2 border-amber-300/40 shrink-0 cursor-pointer group-hover:scale-102 transition-transform"
+                  >
+                    <img
+                      src={momentDish.image}
+                      alt={getDishName(momentDish)}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src =
+                          'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80';
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-stone-950/70 via-transparent to-transparent" />
+                    <div className="absolute bottom-2 left-2 flex flex-wrap gap-1">
+                      {momentDish.isHalal && (
+                        <span className="bg-emerald-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
+                          Halal 🥩
+                        </span>
+                      )}
+                      {momentDish.isVegan && (
+                        <span className="bg-teal-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
+                          Vegan 🥑
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="bg-[#c58b2b] text-stone-950 font-black text-[10px] uppercase px-3 py-1 rounded-full tracking-wider font-cinzel shadow-sm flex items-center gap-1.5 ring-2 ring-amber-300/60">
+                        <Star className="w-3.5 h-3.5 fill-stone-950 text-stone-950" />
+                        <span>{t('dishOfTheMomentBadge') || '⭐ Plat du Moment • Recommandation du Chef'}</span>
                       </span>
-                    )}
+                      <span className="text-xs text-amber-200 italic font-serif hidden sm:inline">
+                        {t('dishOfTheMomentSub') || 'La création exclusive du Chef mise à l\'honneur'}
+                      </span>
+                    </div>
+
+                    <h2
+                      onClick={() => onOpenDishDetail(momentDish)}
+                      className="text-xl sm:text-2xl lg:text-3xl font-serif font-bold text-white tracking-wide cursor-pointer hover:text-amber-200 transition-colors line-clamp-1"
+                    >
+                      {getDishName(momentDish)}
+                    </h2>
+
+                    <p className="text-xs sm:text-sm text-stone-200/90 leading-relaxed font-sans line-clamp-2">
+                      {getDishDesc(momentDish)}
+                    </p>
+
+                    <div className="flex flex-wrap items-center gap-3 pt-1 text-xs font-mono">
+                      <span className="font-serif text-lg sm:text-xl font-bold text-[#dfab43]">
+                        {formatPrice(momentDish.price)}
+                      </span>
+                      <span className="bg-white/15 px-2.5 py-0.5 rounded-lg text-amber-100 text-[11px] font-bold">
+                        {momentDish.nutrition?.kcal || 0} kcal
+                      </span>
+                      {momentDish.winePairing && (
+                        <span className="bg-white/15 px-2.5 py-0.5 rounded-lg text-[11px] flex items-center gap-1 text-amber-200">
+                          <Wine className="w-3.5 h-3.5" />
+                          <span>{momentDish.winePairing}</span>
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                {/* Direct Actions: View Dish Card & Phone Booking */}
+                {/* Actions: View Dish Card & Phone Booking */}
                 <div className="flex flex-col sm:flex-row lg:flex-col gap-2 shrink-0">
-                  {isAdmin && onEditDish && (
-                    <button
-                      type="button"
-                      onClick={() => onEditDish(spotlightDish)}
-                      className="flex items-center justify-center gap-1.5 bg-white/95 hover:bg-white text-stone-900 px-4 py-2.5 rounded-2xl text-xs font-bold transition shadow-sm hover:scale-105 cursor-pointer border border-stone-200"
-                    >
-                      <Pencil className="w-3.5 h-3.5 text-[#99281a]" />
-                      <span>Modifier dans l'espace privé</span>
-                    </button>
-                  )}
-
                   <button
                     type="button"
-                    onClick={() => onOpenDishDetail(spotlightDish)}
-                    className="flex items-center justify-center gap-2 bg-white hover:bg-amber-50 text-stone-900 px-4 py-2.5 rounded-2xl text-xs font-bold transition shadow-sm hover:scale-105 cursor-pointer"
+                    onClick={() => onOpenDishDetail(momentDish)}
+                    className="flex items-center justify-center gap-2 bg-gradient-to-r from-amber-400 to-[#dfab43] hover:from-amber-300 hover:to-amber-400 text-stone-950 font-bold px-5 py-2.5 rounded-2xl text-xs transition shadow-md hover:scale-105 cursor-pointer ring-2 ring-amber-300/80"
                   >
-                    <span>Consulter la fiche & commander</span>
-                    <ChevronRight className="w-4 h-4 text-[#99281a]" />
+                    <span>Consulter la fiche</span>
+                    <ChevronRight className="w-4 h-4 text-stone-950" />
                   </button>
 
                   <a
                     href={`tel:${restaurant.phone.replace(/\s+/g, '')}`}
-                    className="flex items-center justify-center gap-2 bg-[#c58b2b] hover:bg-amber-400 text-stone-950 px-4 py-2.5 rounded-2xl text-xs font-bold transition shadow-sm hover:scale-105"
+                    className="flex items-center justify-center gap-2 bg-stone-900/60 hover:bg-stone-900 text-white px-4 py-2.5 rounded-2xl text-xs font-bold transition shadow-sm hover:scale-105 border border-white/20"
                   >
-                    <PhoneCall className="w-4 h-4 text-stone-950" />
+                    <PhoneCall className="w-4 h-4 text-amber-300" />
                     <span>
                       {t('book')} : <strong>{restaurant.phone}</strong>
                     </span>
@@ -1072,6 +1304,8 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                       ? alg?.name_it
                       : currentLang === 'en'
                       ? alg?.name_en
+                      : currentLang === 'es'
+                      ? (alg?.name_es || alg?.name)
                       : alg?.name;
                   return (
                     <span
@@ -1137,16 +1371,16 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                   <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-950 border border-amber-300 px-2.5 py-0.5 rounded-full text-xs font-bold">
                     <span>
                       {activeMacroFilter === 'high-protein'
-                        ? '💪 Protéines (>25g)'
+                        ? 'Protéines (>25g)'
                         : activeMacroFilter === 'low-cal'
-                        ? '🥗 < 500 Kcal'
+                        ? '< 500 Kcal'
                         : activeMacroFilter === 'low-carb'
-                        ? '🥑 Low Carb'
+                        ? 'Low Carb'
                         : activeMacroFilter === 'low-fat'
-                        ? '💧 Faible en gras'
+                        ? 'Faible en gras'
                         : activeMacroFilter === 'high-cal'
-                        ? '⚡ Riche en énergie'
-                        : '🌱 Végétarien'}
+                        ? 'Riche en énergie'
+                        : 'Végétarien'}
                     </span>
                     <button
                       type="button"
@@ -1201,6 +1435,7 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
               </div>
             </div>
           )}
+
           {categorizedDishes.map((group) => {
             if (group.dishes.length === 0) return null;
 
@@ -1254,6 +1489,12 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
 
                             {/* Tags */}
                             <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
+                              {restaurant.dishOfTheMomentEnabled && restaurant.dishOfTheMomentId === dish.id && (
+                                <span className="bg-gradient-to-r from-amber-400 to-amber-500 text-stone-950 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-md ring-1 ring-amber-300">
+                                  <Star className="w-3 h-3 fill-stone-950 text-stone-950" />
+                                  <span>Plat du Moment</span>
+                                </span>
+                              )}
                               {dish.isHalal && (
                                 <span className="bg-emerald-600/90 backdrop-blur-md text-white px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
                                   <span>🥩</span> Halal
@@ -1415,6 +1656,12 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                             <h3 className="text-base font-serif font-bold text-stone-900">
                               {getDishName(dish)}
                             </h3>
+                            {restaurant.dishOfTheMomentEnabled && restaurant.dishOfTheMomentId === dish.id && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-400 text-stone-950 font-black border border-amber-500 flex items-center gap-1 shadow-xs">
+                                <Star className="w-2.5 h-2.5 fill-stone-950 text-stone-950" />
+                                <span>Plat du Moment</span>
+                              </span>
+                            )}
                             {dish.isHalal && (
                               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-300 flex items-center gap-0.5">
                                 <span>🥩</span> Halal
@@ -1458,9 +1705,35 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
           <h3 className="text-xl font-serif font-bold text-stone-900">
             {restaurant.name}
           </h3>
-          <p className="text-xs text-stone-600 mt-1">
-            {restaurant.address} • {restaurant.phone}
-          </p>
+          <div className="mt-2.5 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs text-stone-600">
+            {restaurant.address && (
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                  restaurant.name + ' ' + restaurant.address
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 hover:text-[#99281a] transition font-medium"
+                title="Voir sur Google Maps"
+              >
+                <MapPin className="w-3.5 h-3.5 text-[#99281a]" />
+                <span className="hover:underline">{restaurant.address}</span>
+              </a>
+            )}
+            {restaurant.address && restaurant.phone && (
+              <span className="text-stone-300 hidden sm:inline">•</span>
+            )}
+            {restaurant.phone && (
+              <a
+                href={`tel:${restaurant.phone.replace(/[^0-9+]/g, '')}`}
+                className="inline-flex items-center gap-1.5 hover:text-emerald-700 transition font-bold text-stone-800"
+                title={`Appeler ${restaurant.name}`}
+              >
+                <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                <span className="hover:underline">{restaurant.phone}</span>
+              </a>
+            )}
+          </div>
           <div className="mt-4 flex items-center justify-center gap-2">
             <button
               onClick={onBackToPortal}
@@ -1469,25 +1742,55 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
               {t('backToHub')}
             </button>
           </div>
-        </footer>
-        {/* Floating Mobile Espace Privé Quick Access Button */}
-        {onOpenAdminModal && (
-          <div className="fixed bottom-5 right-4 z-40 sm:hidden transition-all duration-300">
-            <button
-              onClick={onOpenAdminModal}
-              className="w-12 h-12 rounded-full bg-gradient-to-br from-[#99281a] to-[#781524] text-white border-2 border-[#dfab43]/80 shadow-xl flex items-center justify-center cursor-pointer active:scale-90 transition hover:scale-105"
-              title="Accéder à l'Espace Privé"
-              aria-label="Accéder à l'Espace Privé"
-            >
-              {isAdmin ? (
-                <SlidersHorizontal className="w-5 h-5 text-amber-300" />
-              ) : (
-                <KeyRound className="w-5 h-5 text-amber-300" />
-              )}
-            </button>
+
+          {/* Discreet Footer Access */}
+          <div className="mt-8 pt-6 border-t border-stone-300/40 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[11px] text-stone-600">
+            {onOpenAdminModal && (
+              <button
+                type="button"
+                onClick={onOpenAdminModal}
+                className="hover:text-stone-800 transition cursor-pointer flex items-center gap-1.5 opacity-60 hover:opacity-100"
+              >
+                <KeyRound className="w-3 h-3" />
+                <span>{isAdmin ? 'Gérer la carte' : 'Espace privé'}</span>
+              </button>
+            )}
+            {isAdmin && onLogoutAdmin && (
+              <button
+                type="button"
+                onClick={onLogoutAdmin}
+                className="hover:text-rose-600 transition cursor-pointer flex items-center gap-1.5 opacity-60 hover:opacity-100 text-rose-500"
+              >
+                <LogOut className="w-3 h-3" />
+                <span>Déconnexion</span>
+              </button>
+            )}
+            {onOpenCreatorDashboard && (
+              <button
+                type="button"
+                onClick={onOpenCreatorDashboard}
+                className="hover:text-stone-800 transition cursor-pointer flex items-center gap-1.5 opacity-60 hover:opacity-100"
+              >
+                <Crown className="w-3 h-3" />
+                <span>Dashboard</span>
+              </button>
+            )}
           </div>
-        )}
+        </footer>
       </div>
+
+      {/* Restaurant Page Customizer Modal */}
+      <RestaurantCustomizerModal
+        isOpen={isCustomizerOpen}
+        onClose={() => setIsCustomizerOpen(false)}
+        restaurant={restaurant}
+        onSave={(updated) => {
+          if (onUpdateRestaurant) {
+            onUpdateRestaurant(updated);
+          }
+        }}
+        onShowToast={onShowToast || (() => {})}
+      />
     </div>
   );
 };
