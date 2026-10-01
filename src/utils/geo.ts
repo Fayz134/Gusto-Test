@@ -129,3 +129,29 @@ export async function getCityNameFromCoords(lat: number, lng: number): Promise<s
   // 3. Guaranteed reliable fallback to closest city name
   return findClosestCity(lat, lng);
 }
+
+export interface TravelTimeInfo {
+  distanceKm: number;
+  distanceFormatted: string;
+  walkMinutes: number;
+  walkLabel: string;
+  driveMinutes: number;
+  driveLabel: string;
+}
+
+export function calcTravelTimes(distanceKm: number): TravelTimeInfo {
+  const d = Math.max(0.05, distanceKm);
+  const walkMinutes = Math.max(1, Math.round((d / 4.5) * 60));
+  const driveMinutes = Math.max(2, Math.round((d / 28) * 60) + 1);
+  const distanceFormatted = d < 1 ? `${Math.round(d * 1000)} m` : `${d.toFixed(1)} km`;
+
+  return {
+    distanceKm: d,
+    distanceFormatted,
+    walkMinutes,
+    walkLabel: `🚶 ${walkMinutes} min à pied`,
+    driveMinutes,
+    driveLabel: `🚗 ${driveMinutes} min en voiture`,
+  };
+}
+

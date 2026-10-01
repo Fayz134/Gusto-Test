@@ -1,7 +1,20 @@
 import React from 'react';
-import { MapPin, Flame, ArrowRight, Utensils, ShieldCheck, Sparkles } from 'lucide-react';
-import { Restaurant, Language, MacroFilterType } from '../types';
+import {
+  MapPin,
+  Flame,
+  ArrowRight,
+  Utensils,
+  ShieldCheck,
+  Sparkles,
+  Star,
+  Crown,
+  Phone,
+} from 'lucide-react';
+import { Restaurant, Language, MacroFilterType, AMENITIES_MASTER_LIST } from '../types';
 import { I18N_DICT } from '../data/i18n';
+import { trackPhoneCall } from '../utils/analytics';
+import { calcDistanceKm, calcTravelTimes } from '../utils/geo';
+import { Share2, Footprints, Car } from 'lucide-react';
 
 interface RestaurantCardProps {
   restaurant: Restaurant;
@@ -11,6 +24,10 @@ interface RestaurantCardProps {
   isHalalOnly?: boolean;
   isVeganOnly?: boolean;
   onSelect: (id: string) => void;
+  isNewBadge?: boolean;
+  onViewOnMap?: (id: string) => void;
+  onShare?: (restaurant: Restaurant) => void;
+  userCoords?: { lat: number; lng: number } | null;
 }
 
 export const RestaurantCard: React.FC<RestaurantCardProps> = ({
@@ -21,8 +38,17 @@ export const RestaurantCard: React.FC<RestaurantCardProps> = ({
   isHalalOnly = false,
   isVeganOnly = false,
   onSelect,
+  isNewBadge = false,
+  onViewOnMap,
+  onShare,
+  userCoords,
 }) => {
   const t = (key: string) => I18N_DICT[currentLang]?.[key] || key;
+
+  const refLat = userCoords?.lat || 43.2929;
+  const refLng = userCoords?.lng || 5.5714;
+  const dist = calcDistanceKm(refLat, refLng, restaurant.coords.lat, restaurant.coords.lng);
+  const travel = calcTravelTimes(dist);
 
   // Halal dish count
   const halalDishesCount = restaurant.dishes.filter(
@@ -76,18 +102,20 @@ export const RestaurantCard: React.FC<RestaurantCardProps> = ({
       : 0;
 
   return (
-    <div className="bg-white rounded-3xl overflow-hidden border border-stone-200 shadow-sm hover:shadow-xl hover:border-[#99281a]/50 transition-all duration-300 flex flex-col justify-between group">
+    <div
+      onClick={() => onSelect(restaurant.id)}
+      className="bg-white rounded-3xl overflow-hidden border border-stone-200/90 shadow-sm hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.12),0_12px_24px_-10px_rgba(153,40,26,0.07)] hover:border-[#99281a]/40 transform hover:-translate-y-1.5 hover:scale-[1.018] transition-all duration-300 ease-out flex flex-col justify-between group cursor-pointer"
+    >
       <div>
         {/* Banner with badges */}
         <div
           className="relative h-48 w-full overflow-hidden bg-stone-100 cursor-pointer"
-          onClick={() => onSelect(restaurant.id)}
         >
           <img
             src={restaurant.banner}
             alt={restaurant.name}
             loading="lazy"
-            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+            className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
             onError={(e) => {
               (e.target as HTMLImageElement).src =
                 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800&q=80';
@@ -95,7 +123,13 @@ export const RestaurantCard: React.FC<RestaurantCardProps> = ({
           />
 
           {/* Top badges */}
-          <div className="absolute top-3 left-3 flex items-center gap-1.5 flex-wrap">
+          <div className="absolute top-3 left-3 flex items-center gap-1.5 flex-wrap z-10">
+            {(isNewBadge || restaurant.isNew) && (
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-amber-500 via-rose-500 to-red-600 text-white shadow-[0_4px_12px_rgba(244,63,94,0.55)] border border-white/40 flex items-center gap-1 animate-pulse">
+                <Sparkles className="w-2.5 h-2.5 text-amber-200 fill-amber-200" />
+                <span>Nouveau</span>
+              </span>
+            )}
             <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-stone-900/80 backdrop-blur-md text-amber-300 border border-amber-300/30">
               {restaurant.cuisine}
             </span>
@@ -126,31 +160,64 @@ export const RestaurantCard: React.FC<RestaurantCardProps> = ({
             </span>
           </div>
 
-          {/* Live Open Status */}
+          {/* Live Open Status & Recommandé badge */}
           <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur-md px-2.5 py-1 rounded-xl text-[10px] font-bold flex items-center gap-1.5 text-emerald-800 border border-stone-200/80">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             <span>{restaurant.openingHours.isOpenNow ? t('open') : t('closed')}</span>
           </div>
+
+          {(restaurant.isGustoRecommended || (restaurant.rating || 4.8) >= 4.5) && (
+            <div className="absolute bottom-3 right-3 bg-gradient-to-r from-amber-500 to-amber-600 text-stone-950 font-black text-[9px] px-2.5 py-1 rounded-full shadow-md border border-amber-200 flex items-center gap-1">
+              <Crown className="w-2.5 h-2.5 fill-stone-950" />
+              <span>Recommandé par Gusto</span>
+            </div>
+          )}
         </div>
 
         {/* Info */}
         <div className="p-5 space-y-3">
           <div>
-            <h4
-              className="text-xl font-serif font-bold text-stone-900 group-hover:text-[#99281a] transition-colors cursor-pointer"
-              onClick={() => onSelect(restaurant.id)}
-            >
-              {restaurant.name}
-            </h4>
+            <div className="flex items-start justify-between gap-2">
+              <h4
+                className="text-xl font-serif font-bold text-stone-900 group-hover:text-[#99281a] transition-colors cursor-pointer"
+                onClick={() => onSelect(restaurant.id)}
+              >
+                {restaurant.name}
+              </h4>
+              {/* Star Rating Badge */}
+              <div className="flex items-center gap-1 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200/90 text-amber-900 font-black text-xs shrink-0">
+                <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                <span>{restaurant.rating || 4.8}</span>
+                <span className="text-stone-400 text-[10px] font-normal">
+                  ({restaurant.reviewsCount || 34})
+                </span>
+              </div>
+            </div>
             <p className="text-xs text-stone-500 font-serif italic mt-0.5">
               {restaurant.tagline}
             </p>
           </div>
 
-          {/* Address */}
-          <div className="text-[11px] text-stone-600 flex items-center gap-2">
-            <MapPin className="w-3.5 h-3.5 text-[#99281a] shrink-0" />
-            <span className="truncate">{restaurant.address}</span>
+          {/* Address with View on Map CTA */}
+          <div className="text-[11px] text-stone-600 flex items-center justify-between gap-1.5">
+            <div className="flex items-center gap-1.5 truncate">
+              <MapPin className="w-3.5 h-3.5 text-[#99281a] shrink-0" />
+              <span className="truncate">{restaurant.address}</span>
+            </div>
+            {onViewOnMap && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onViewOnMap(restaurant.id);
+                }}
+                className="shrink-0 text-[10px] text-[#99281a] hover:text-white hover:bg-[#99281a] font-bold flex items-center gap-1 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200 transition cursor-pointer"
+                title="Voir ce restaurant sur la carte interactive"
+              >
+                <span>Carte</span>
+                <span>🗺️</span>
+              </button>
+            )}
           </div>
 
           {/* Allergen & Macro Compatibility Badges */}
@@ -206,6 +273,38 @@ export const RestaurantCard: React.FC<RestaurantCardProps> = ({
             </div>
           )}
 
+          {/* Estimated Travel Time */}
+          <div className="bg-amber-50/70 border border-amber-200/80 rounded-xl px-2.5 py-1 text-[11px] font-semibold text-amber-950 flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <Footprints className="w-3.5 h-3.5 text-amber-700" />
+              <span>{travel.walkLabel}</span>
+            </div>
+            <span className="text-stone-300">•</span>
+            <div className="flex items-center gap-1.5">
+              <Car className="w-3.5 h-3.5 text-amber-700" />
+              <span>{travel.driveLabel}</span>
+            </div>
+            <span className="text-amber-800 text-[10px] font-mono">({travel.distanceFormatted})</span>
+          </div>
+
+          {/* Amenities & Equipements */}
+          {restaurant.amenities && restaurant.amenities.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {restaurant.amenities.slice(0, 4).map((a) => {
+                const def = AMENITIES_MASTER_LIST.find((x) => x.id === a);
+                return (
+                  <span
+                    key={a}
+                    className="text-[10px] px-2 py-0.5 rounded-lg bg-stone-100 border border-stone-200 text-stone-700 font-medium flex items-center gap-1"
+                  >
+                    <span>{def?.emoji || '✨'}</span>
+                    <span>{def?.shortLabel || a}</span>
+                  </span>
+                );
+              })}
+            </div>
+          )}
+
           {/* Nutrition Summary Box */}
           <div className="bg-stone-50 p-3 rounded-2xl border border-stone-200/90 space-y-1.5 text-[11px]">
             <div className="flex items-center justify-between text-stone-700 font-semibold">
@@ -230,14 +329,41 @@ export const RestaurantCard: React.FC<RestaurantCardProps> = ({
         </div>
       </div>
 
-      {/* Button */}
-      <div className="p-5 pt-0">
+      {/* Buttons */}
+      <div className="p-5 pt-0 flex items-center gap-2">
         <button
           onClick={() => onSelect(restaurant.id)}
-          className="w-full py-2.5 bg-[#99281a] hover:bg-[#781524] text-white font-bold text-xs rounded-2xl flex items-center justify-center gap-2 transition shadow-md hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+          className="grow py-2.5 bg-[#99281a] hover:bg-[#781524] text-white font-bold text-xs rounded-2xl flex items-center justify-center gap-2 transition shadow-md hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
         >
           <span>{t('consultMenu')}</span>
           <ArrowRight className="w-4 h-4" />
+        </button>
+
+        {onShare && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onShare(restaurant);
+            }}
+            className="p-2.5 rounded-2xl bg-stone-100 hover:bg-blue-50 text-stone-700 hover:text-blue-700 border border-stone-200 hover:border-blue-300 transition cursor-pointer shadow-xs"
+            title="Partager le restaurant et l'itinéraire"
+          >
+            <Share2 className="w-4 h-4" />
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            trackPhoneCall(restaurant.id);
+            window.location.href = `tel:${restaurant.phone}`;
+          }}
+          className="p-2.5 rounded-2xl bg-stone-100 hover:bg-emerald-50 text-stone-700 hover:text-emerald-700 border border-stone-200 hover:border-emerald-300 transition cursor-pointer shadow-xs"
+          title={`Appeler ${restaurant.name} (${restaurant.phone})`}
+        >
+          <Phone className="w-4 h-4" />
         </button>
       </div>
     </div>

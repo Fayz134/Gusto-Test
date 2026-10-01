@@ -13,6 +13,9 @@ import {
   ChevronDown,
   RotateCcw,
   Check,
+  PhoneCall,
+  Calendar,
+  BarChart3,
 } from 'lucide-react';
 import {
   DailyTrafficPoint,
@@ -670,6 +673,17 @@ export const TrafficCharts: React.FC<TrafficChartsProps> = ({
               </div>
             </div>
 
+            {/* Total Phone Calls conversion tile */}
+            <div className="bg-amber-50/70 p-3 rounded-2xl border border-amber-200/80 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2 text-amber-950 font-bold">
+                <PhoneCall className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Appels téléphoniques reçus</span>
+              </div>
+              <span className="font-mono font-black text-amber-900 text-sm">
+                {(restaurantSummary ? restaurantSummary.totalPhoneCalls : 920).toLocaleString('fr-FR')}
+              </span>
+            </div>
+
             {/* Top 4 Dishes */}
             <div className="mt-4 space-y-2">
               <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
@@ -705,6 +719,100 @@ export const TrafficCharts: React.FC<TrafficChartsProps> = ({
 
           <div className="p-3 rounded-2xl bg-amber-50/80 border border-amber-200/80 text-[11px] text-amber-900">
             💡 <strong>Astuce Fondateur :</strong> Les scans QR code augmentent de 34% le vendredi soir et le samedi soir.
+          </div>
+        </div>
+      </div>
+
+      {/* =========================================================================
+          SECTION 3: AFFLUENCE ESTIMÉE PAR JOUR DE LA SEMAINE (LUNDI AU DIMANCHE)
+         ========================================================================= */}
+      <div className="bg-white rounded-3xl p-4 sm:p-6 border border-stone-200 shadow-xs space-y-4 w-full">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-100 pb-3">
+          <div>
+            <h3 className="font-serif font-black text-sm sm:text-base text-stone-900 flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-[#99281a]" />
+              <span>
+                Affluence estimée par jour de la semaine {isGlobal ? '(Plateforme Globale)' : `• ${targetRestaurant?.name}`}
+              </span>
+            </h3>
+            <p className="text-[11px] sm:text-xs text-stone-500">
+              Modélisation de la charge en salle et prévisions de fréquentation (Lundi au Dimanche).
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-[11px] font-mono text-stone-600 bg-stone-100 px-2.5 py-1 rounded-full border border-stone-200 font-semibold">
+              🔒 Réservé au Dashboard Gestionnaire
+            </span>
+          </div>
+        </div>
+
+        {/* 7 Days Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-7 gap-3">
+          {(
+            restaurantSummary?.weeklyAffluence || [
+              { dayName: 'Lundi', dayShort: 'Lun', dayIndex: 1, percentage: 45, peakHours: '12h30 - 13h45', isToday: new Date().getDay() === 1 },
+              { dayName: 'Mardi', dayShort: 'Mar', dayIndex: 2, percentage: 58, peakHours: '12h15 - 14h00', isToday: new Date().getDay() === 2 },
+              { dayName: 'Mercredi', dayShort: 'Mer', dayIndex: 3, percentage: 65, peakHours: '12h00 - 14h15', isToday: new Date().getDay() === 3 },
+              { dayName: 'Jeudi', dayShort: 'Jeu', dayIndex: 4, percentage: 75, peakHours: '19h30 - 21h30', isToday: new Date().getDay() === 4 },
+              { dayName: 'Vendredi', dayShort: 'Ven', dayIndex: 5, percentage: 94, peakHours: '19h00 - 22h30', isToday: new Date().getDay() === 5 },
+              { dayName: 'Samedi', dayShort: 'Sam', dayIndex: 6, percentage: 98, peakHours: '12h30 - 14h30 & 19h30 - 23h00', isToday: new Date().getDay() === 6 },
+              { dayName: 'Dimanche', dayShort: 'Dim', dayIndex: 0, percentage: 82, peakHours: '12h00 - 15h00', isToday: new Date().getDay() === 0 },
+            ]
+          ).map((day) => (
+            <div
+              key={day.dayName}
+              className={`rounded-2xl p-3.5 border transition flex flex-col justify-between space-y-3 ${
+                day.isToday
+                  ? 'bg-amber-50/80 border-amber-400 shadow-md ring-2 ring-amber-400/20'
+                  : 'bg-stone-50/70 border-stone-200/80 hover:bg-stone-50'
+              }`}
+            >
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-stone-900">{day.dayName}</span>
+                  {day.isToday && (
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+                  )}
+                </div>
+                {day.isToday && (
+                  <span className="text-[9px] font-black uppercase text-amber-800 bg-amber-200/70 px-2 py-0.5 rounded-full inline-block mt-1">
+                    Aujourd'hui
+                  </span>
+                )}
+              </div>
+
+              {/* Vertical bar */}
+              <div className="h-20 w-3.5 mx-auto bg-stone-200 rounded-full flex flex-col justify-end overflow-hidden p-0.5">
+                <div
+                  className={`w-full rounded-full transition-all duration-700 ${
+                    day.percentage >= 90
+                      ? 'bg-rose-600'
+                      : day.percentage >= 70
+                      ? 'bg-amber-500'
+                      : 'bg-emerald-600'
+                  }`}
+                  style={{ height: `${day.percentage}%` }}
+                />
+              </div>
+
+              <div className="space-y-1 text-center">
+                <span className="text-xs font-mono font-black text-stone-900 block">
+                  {day.percentage}%
+                </span>
+                <p className="text-[10px] text-stone-500 leading-tight font-medium">
+                  {day.peakHours}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="bg-amber-50/60 p-3 rounded-2xl border border-amber-200/80 flex items-start gap-2.5 text-xs text-amber-950">
+          <Clock className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+          <div>
+            <strong>Optimisation du personnel & approvisionnement : </strong>
+            Anticipez les pics d'affluence du vendredi soir et du samedi (90-98% de capacité estimée) en renforçant les effectifs en cuisine et en salle à partir de 18h45.
           </div>
         </div>
       </div>

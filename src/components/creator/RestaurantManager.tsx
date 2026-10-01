@@ -140,7 +140,7 @@ export const RestaurantManager: React.FC<RestaurantManagerProps> = ({
           return (
             <div
               key={resto.id}
-              className="bg-white rounded-3xl border border-stone-200 shadow-xs overflow-hidden flex flex-col justify-between group hover:border-stone-300 transition duration-200"
+              className="bg-white rounded-3xl border border-stone-200/90 shadow-sm hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.12),0_12px_24px_-10px_rgba(153,40,26,0.07)] hover:border-[#99281a]/40 transform hover:-translate-y-1.5 hover:scale-[1.018] transition-all duration-300 ease-out overflow-hidden flex flex-col justify-between group"
             >
               <div>
                 {/* Banner Photo */}

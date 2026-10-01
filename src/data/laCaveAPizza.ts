@@ -9,9 +9,10 @@ export const LA_CAVE_A_PIZZA_AUBAGNE: Restaurant = {
   address: '124 Avenue des Sœurs Gastine, 13400 Aubagne',
   phone: '04 42 70 20 20',
   banner: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=1200&q=80',
-  coords: { lat: 43.2928, lng: 5.5704 },
+  coords: { lat: 43.2941, lng: 5.5719 },
   distance: 0.3,
   avgKcal: 620,
+  amenities: ['terrasse', 'parking', 'climatisation', 'pmr', 'chiens'],
   dishOfTheMomentId: 'cp_t_figatelli_brousse',
   dishOfTheMomentEnabled: true,
   openingHours: {

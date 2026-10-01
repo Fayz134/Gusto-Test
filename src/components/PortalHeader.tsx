@@ -4,6 +4,7 @@ import {
   BookOpen,
   Flame,
   ShieldAlert,
+  ShieldCheck,
   MapPin,
   Building2,
   Sparkles,
@@ -14,6 +15,7 @@ import {
   ChevronRight,
   Globe,
   SlidersHorizontal,
+  Map,
 } from 'lucide-react';
 import { Language } from '../types';
 import { I18N_DICT } from '../data/i18n';
@@ -32,6 +34,8 @@ export interface PortalHeaderProps {
   onOpenAdminModal?: () => void;
   onOpenCreatorDashboard?: () => void;
   onOpenRegistrationModal?: () => void;
+  onOpenMap?: () => void;
+  isMapActive?: boolean;
   currentView?: 'portal' | 'restaurant' | 'creator-dashboard';
   onNavigatePortal?: () => void;
   onNavigateRestaurant?: () => void;
@@ -42,6 +46,8 @@ export interface PortalHeaderProps {
   activeRestaurantName?: string;
   pendingRegistrationsCount?: number;
   restaurantsCount?: number;
+  onOpenDietaryProfile?: () => void;
+  hasSavedDietaryProfile?: boolean;
 }
 
 export const PortalHeader: React.FC<PortalHeaderProps> = ({
@@ -53,6 +59,8 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
   onOpenAdminModal,
   onOpenCreatorDashboard,
   onOpenRegistrationModal,
+  onOpenMap,
+  isMapActive = false,
   currentView = 'portal',
   onNavigatePortal,
   onNavigateRestaurant,
@@ -63,6 +71,8 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
   activeRestaurantName,
   pendingRegistrationsCount = 0,
   restaurantsCount,
+  onOpenDietaryProfile,
+  hasSavedDietaryProfile = false,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const t = (key: string) => I18N_DICT[currentLang]?.[key] || key;
@@ -197,6 +207,27 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
             )}
           </button>
 
+          {/* 1.5. Carte Interactive (Live GPS) */}
+          {onOpenMap && (
+            <button
+              type="button"
+              onClick={onOpenMap}
+              className={`px-3 py-1.5 rounded-full transition-all cursor-pointer flex items-center gap-1.5 ${
+                isMapActive
+                  ? 'bg-amber-400 text-stone-950 font-black shadow-xs border border-amber-300'
+                  : 'hover:text-amber-300 hover:bg-white/10 text-stone-200'
+              }`}
+              title="Ouvrir la carte interactive géolocalisée des restaurants"
+            >
+              <Map className={`w-3.5 h-3.5 ${isMapActive ? 'text-stone-950' : 'text-amber-400'}`} />
+              <span>Carte Interactive</span>
+              <span className="flex h-2 w-2 relative shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+              </span>
+            </button>
+          )}
+
           {/* 2. Menu & Carte */}
           <button
             type="button"
@@ -239,6 +270,29 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
               </span>
             )}
           </button>
+
+          {/* 4.5. Mon Profil Diététique Sauvegardé */}
+          {onOpenDietaryProfile && (
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                onOpenDietaryProfile();
+              }}
+              className={`px-3 py-1.5 rounded-full transition-all cursor-pointer flex items-center gap-1.5 ${
+                hasSavedDietaryProfile
+                  ? 'bg-emerald-500/25 text-emerald-200 border border-emerald-400/40 font-bold'
+                  : 'hover:text-emerald-300 hover:bg-white/10 text-stone-300'
+              }`}
+              title="Mon Profil Diététique (Allergies et régimes enregistrés dans le navigateur)"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Profil</span>
+              {hasSavedDietaryProfile && (
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]"></span>
+              )}
+            </button>
+          )}
 
           {/* 5. Dashboard / Espace Pro button */}
           {onOpenCreatorDashboard && (
@@ -363,6 +417,44 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
               Navigation
             </p>
             <div className="grid grid-cols-2 gap-1.5 text-xs font-semibold">
+              {/* Carte Interactive Mobile Hero Button */}
+              {onOpenMap && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    onOpenMap();
+                  }}
+                  className={`col-span-2 p-3 rounded-2xl flex items-center justify-between transition cursor-pointer text-left ${
+                    isMapActive
+                      ? 'bg-amber-400 text-stone-950 border border-amber-300 font-bold shadow-md'
+                      : 'bg-gradient-to-r from-amber-500/20 via-[#99281a]/25 to-stone-800 text-white border border-amber-400/40 hover:border-amber-400/70 shadow-xs'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                      isMapActive ? 'bg-stone-950 text-amber-400' : 'bg-amber-400/25 text-amber-300'
+                    }`}>
+                      <Map className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="font-black text-xs flex items-center gap-1.5">
+                        <span>Carte Interactive en direct</span>
+                        <span className={`px-1.5 py-0.2 text-[9px] font-black rounded-md ${
+                          isMapActive ? 'bg-stone-950 text-amber-300' : 'bg-amber-400 text-stone-950'
+                        }`}>
+                          LIVE GPS
+                        </span>
+                      </div>
+                      <div className={`text-[10px] ${isMapActive ? 'text-stone-800' : 'text-stone-300'}`}>
+                        Géolocalisation, filtres allergènes & itinéraires
+                      </div>
+                    </div>
+                  </div>
+                  <ChevronRight className={`w-4 h-4 ${isMapActive ? 'text-stone-950' : 'text-amber-300'}`} />
+                </button>
+              )}
+
               {/* Restaurants Hub */}
               <button
                 type="button"
@@ -433,6 +525,40 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
                   </span>
                 )}
               </button>
+
+              {/* Mon Profil Diététique */}
+              {onOpenDietaryProfile && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    onOpenDietaryProfile();
+                  }}
+                  className={`p-3 rounded-2xl flex items-center justify-between transition cursor-pointer text-left ${
+                    hasSavedDietaryProfile
+                      ? 'bg-emerald-500/25 border border-emerald-400/40 text-emerald-200 font-bold'
+                      : 'bg-white/5 hover:bg-white/10 text-stone-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <div>
+                      <div className="font-bold flex items-center gap-1.5">
+                        <span>Mon Profil Diététique</span>
+                        {hasSavedDietaryProfile && (
+                          <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-emerald-500 text-stone-950 font-black">
+                            Actif
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-stone-400 font-normal">
+                        Allergies & préférences sauvegardées
+                      </div>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-stone-400" />
+                </button>
+              )}
             </div>
           </div>
 

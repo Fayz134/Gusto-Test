@@ -2,16 +2,19 @@ import React, { useState } from 'react';
 import {
   X,
   ShieldAlert,
+  ShieldCheck,
   RotateCcw,
   SlidersHorizontal,
   Check,
   Sparkles,
   Leaf,
   Dumbbell,
-  Flame
+  Flame,
+  Save
 } from 'lucide-react';
 import { Language, MacroFilterType } from '../types';
 import { I18N_DICT, ALLERGENS_MASTER_LIST } from '../data/i18n';
+import { saveDietaryProfile } from '../utils/dietaryProfile';
 
 interface AllergenFilterModalProps {
   isOpen: boolean;
@@ -24,6 +27,8 @@ interface AllergenFilterModalProps {
   onToggleHalal?: () => void;
   isVeganOnly?: boolean;
   onToggleVegan?: () => void;
+  isOpenOnly?: boolean;
+  onToggleOpenOnly?: () => void;
   activeMacroFilter?: MacroFilterType;
   onMacroFilterChange?: (macro: MacroFilterType) => void;
 }
@@ -39,11 +44,14 @@ export const AllergenFilterModal: React.FC<AllergenFilterModalProps> = ({
   onToggleHalal,
   isVeganOnly = false,
   onToggleVegan,
+  isOpenOnly = false,
+  onToggleOpenOnly,
   activeMacroFilter = 'all',
   onMacroFilterChange,
 }) => {
   const t = (key: string) => I18N_DICT[currentLang]?.[key] || key;
   const [activeTab, setActiveTab] = useState<'all' | 'diet' | 'macros' | 'allergens'>('all');
+  const [savedToast, setSavedToast] = useState(false);
 
   if (!isOpen) return null;
 
@@ -54,6 +62,9 @@ export const AllergenFilterModal: React.FC<AllergenFilterModalProps> = ({
     }
     if (isVeganOnly && onToggleVegan) {
       onToggleVegan();
+    }
+    if (isOpenOnly && onToggleOpenOnly) {
+      onToggleOpenOnly();
     }
     if (onMacroFilterChange) {
       onMacroFilterChange('all');
@@ -115,13 +126,13 @@ export const AllergenFilterModal: React.FC<AllergenFilterModalProps> = ({
             type="button"
             onClick={() => setActiveTab('diet')}
             className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1 cursor-pointer shrink-0 ${
-              activeTab === 'diet' || isHalalOnly || isVeganOnly
+              activeTab === 'diet' || isHalalOnly || isVeganOnly || isOpenOnly
                 ? 'bg-white text-emerald-800 shadow-xs font-bold'
                 : 'text-stone-600 hover:text-stone-900'
             }`}
           >
-            <span>🥩</span>
-            <span>Régimes {(isHalalOnly || isVeganOnly) && '• Actif'}</span>
+            <span>🟢</span>
+            <span>Disponibilité & Régimes {(isHalalOnly || isVeganOnly || isOpenOnly) && '• Actif'}</span>
           </button>
           <button
             type="button"
@@ -150,19 +161,61 @@ export const AllergenFilterModal: React.FC<AllergenFilterModalProps> = ({
 
         {/* Scrollable Content Body */}
         <div className="overflow-y-auto space-y-5 pr-1 grow py-1">
-          {/* SECTION 1: DIETARY & ETHICAL (HALAL, VEGAN & VEGETARIAN) */}
+          {/* SECTION 1: DIETARY & AVAILABILITY */}
           {(activeTab === 'all' || activeTab === 'diet') && (
             <div className="space-y-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-stone-800 uppercase tracking-wider flex items-center gap-1.5">
-                  <span>🥑</span>
-                  <span>{t('dietSectionTitle')}</span>
+                  <span>🟢</span>
+                  <span>Disponibilité & Régimes</span>
                 </span>
-                {(isHalalOnly || isVeganOnly) && (
+                {(isHalalOnly || isVeganOnly || isOpenOnly) && (
                   <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                    Actif
+                    Filtre actif
                   </span>
                 )}
+              </div>
+
+              {/* RESTAURANTS OUVERTS OPTION CARD */}
+              <div
+                onClick={() => onToggleOpenOnly && onToggleOpenOnly()}
+                className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                  isOpenOnly
+                    ? 'bg-emerald-50/90 border-emerald-500 text-emerald-950 shadow-sm'
+                    : 'bg-stone-50 border-stone-200 hover:border-stone-300 text-stone-800'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <div
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg shrink-0 ${
+                      isOpenOnly ? 'bg-emerald-500 text-white' : 'bg-stone-200 text-stone-700'
+                    }`}
+                  >
+                    🟢
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold flex items-center gap-1.5">
+                      <span>{t('openNowOptionTitle')}</span>
+                      <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.2 bg-emerald-600 text-white rounded">
+                        Disponibilité
+                      </span>
+                    </h4>
+                    <p className="text-xs text-stone-600 mt-0.5 leading-snug">
+                      {t('openNowOptionSubtitle')}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Switch indicator */}
+                <div
+                  className={`w-6 h-6 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
+                    isOpenOnly
+                      ? 'bg-emerald-600 border-emerald-600 text-white'
+                      : 'border-stone-300 bg-white'
+                  }`}
+                >
+                  {isOpenOnly && <Check className="w-4 h-4 stroke-[3]" />}
+                </div>
               </div>
 
               {/* HALAL OPTION CARD */}
@@ -378,7 +431,7 @@ export const AllergenFilterModal: React.FC<AllergenFilterModalProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="pt-3 flex justify-between items-center text-xs border-t border-stone-200 shrink-0">
+        <div className="pt-3 flex flex-wrap gap-2 justify-between items-center text-xs border-t border-stone-200 shrink-0">
           <button
             type="button"
             onClick={handleResetAll}
@@ -387,13 +440,34 @@ export const AllergenFilterModal: React.FC<AllergenFilterModalProps> = ({
             <RotateCcw className="w-3.5 h-3.5" />
             <span>{t('resetFilters')}</span>
           </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-6 py-2.5 bg-[#99281a] hover:bg-[#781524] text-white font-bold rounded-2xl transition cursor-pointer shadow-md active:scale-98"
-          >
-            {t('applyFilter')}
-          </button>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                saveDietaryProfile({
+                  allergens: selectedAllergens,
+                  isHalal: isHalalOnly,
+                  isVegan: isVeganOnly,
+                });
+                setSavedToast(true);
+                setTimeout(() => setSavedToast(false), 2500);
+              }}
+              className="px-3.5 py-2.5 rounded-2xl bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer active:scale-95"
+              title="Sauvegarder définitivement ces allergies et préférences dans le navigateur"
+            >
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <span>{savedToast ? 'Enregistré dans le profil !' : 'Mémoriser dans mon profil'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-5 py-2.5 bg-[#99281a] hover:bg-[#781524] text-white font-bold rounded-2xl transition cursor-pointer shadow-md active:scale-98"
+            >
+              {t('applyFilter')}
+            </button>
+          </div>
         </div>
       </div>
     </div>

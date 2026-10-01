@@ -18,15 +18,27 @@ export interface HourlyTrafficPoint {
   isPeak: boolean;
 }
 
+export interface WeekdayAffluencePoint {
+  dayName: string;
+  dayShort: string;
+  dayIndex: number;
+  percentage: number;
+  peakHours: string;
+  status: 'calm' | 'moderate' | 'busy' | 'very_busy';
+  isToday: boolean;
+}
+
 export interface RestaurantTrafficSummary {
   restaurantId: string;
   restaurantName: string;
   totalVisits: number;
   totalQrScans: number;
   totalDishViews: number;
+  totalPhoneCalls: number;
   currentLiveCapacity: number; // percentage 0-100
   status: 'calm' | 'moderate' | 'busy' | 'full';
-  topDishes: { id: string; name: string; views: number }[];
+  topDishes: { id: string; name: string; views: number; percentage: number }[];
+  weeklyAffluence: WeekdayAffluencePoint[];
 }
 
 const STORAGE_ANALYTICS_KEY = 'gusto_platform_analytics_v1';
@@ -35,8 +47,10 @@ interface StoredAnalytics {
   globalVisitsCount: number;
   globalQrScansCount: number;
   globalDishViewsCount: number;
+  globalPhoneClicksCount: number;
   restaurantVisits: Record<string, number>;
   restaurantQrScans: Record<string, number>;
+  restaurantPhoneClicks: Record<string, number>;
   restaurantDishViews: Record<string, Record<string, number>>;
   lastUpdated: string;
 }
@@ -45,7 +59,12 @@ function getStoredData(): StoredAnalytics {
   try {
     const raw = localStorage.getItem(STORAGE_ANALYTICS_KEY);
     if (raw) {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      if (parsed) {
+        if (!parsed.restaurantPhoneClicks) parsed.restaurantPhoneClicks = {};
+        if (parsed.globalPhoneClicksCount === undefined) parsed.globalPhoneClicksCount = 840;
+        return parsed;
+      }
     }
   } catch (e) {
     console.warn('Could not read stored analytics', e);
@@ -56,13 +75,27 @@ function getStoredData(): StoredAnalytics {
     globalVisitsCount: 14820,
     globalQrScansCount: 4210,
     globalDishViewsCount: 38940,
+    globalPhoneClicksCount: 920,
     restaurantVisits: {
       'la-cave-a-pizza-aubagne': 8920,
       'trattoria-bella-vista': 5900,
+      'bistrot-provencal': 3420,
+      'jardin-vegetal-bio': 2890,
+      'le-cedre-grillades-halal': 3150,
     },
     restaurantQrScans: {
       'la-cave-a-pizza-aubagne': 2740,
       'trattoria-bella-vista': 1470,
+      'bistrot-provencal': 890,
+      'jardin-vegetal-bio': 640,
+      'le-cedre-grillades-halal': 780,
+    },
+    restaurantPhoneClicks: {
+      'la-cave-a-pizza-aubagne': 430,
+      'trattoria-bella-vista': 285,
+      'bistrot-provencal': 165,
+      'jardin-vegetal-bio': 120,
+      'le-cedre-grillades-halal': 190,
     },
     restaurantDishViews: {
       'la-cave-a-pizza-aubagne': {
@@ -136,6 +169,21 @@ export function trackQrScan(restaurantId: string): void {
   data.restaurantQrScans[restaurantId] = (data.restaurantQrScans[restaurantId] || 0) + 1;
   data.lastUpdated = new Date().toISOString();
   saveStoredData(data);
+}
+
+// Track phone call button click
+export function trackPhoneCall(restaurantId: string): void {
+  const data = getStoredData();
+  data.globalPhoneClicksCount = (data.globalPhoneClicksCount || 0) + 1;
+  if (!data.restaurantPhoneClicks) data.restaurantPhoneClicks = {};
+  data.restaurantPhoneClicks[restaurantId] = (data.restaurantPhoneClicks[restaurantId] || 0) + 1;
+  data.lastUpdated = new Date().toISOString();
+  saveStoredData(data);
+}
+
+export function getRestaurantPhoneClicks(restaurantId: string): number {
+  const data = getStoredData();
+  return data.restaurantPhoneClicks?.[restaurantId] || 120;
 }
 
 // Calculate realistic daily trends for last 7 or 30 days
@@ -263,6 +311,7 @@ export function getRestaurantTrafficSummary(
   const data = getStoredData();
   const visits = data.restaurantVisits[restaurantId] || Math.round(data.globalVisitsCount * 0.45);
   const qrScans = data.restaurantQrScans[restaurantId] || Math.round(visits * 0.3);
+  const phoneCalls = data.restaurantPhoneClicks?.[restaurantId] || Math.round(visits * 0.05) || 120;
   const dishViewsMap = data.restaurantDishViews[restaurantId] || {};
 
   // Compute live capacity estimate based on current hour in France
@@ -279,17 +328,50 @@ export function getRestaurantTrafficSummary(
   else if (capacity < 90) status = 'busy';
   else status = 'full';
 
-  // Compute top dishes
-  const topDishes = dishesList
-    .map((d) => ({
-      id: d.id,
-      name: d.name,
-      views: dishViewsMap[d.id] || Math.floor(Math.random() * 400 + 150),
-    }))
+  // Seed default views for top dishes if empty
+  const rawTop = dishesList
+    .map((d, index) => {
+      let views = dishViewsMap[d.id];
+      if (views === undefined) {
+        // Realistic distribution based on index
+        views = Math.round((visits * 0.4) / (index * 0.6 + 1) + (index === 0 ? 120 : 30));
+      }
+      return {
+        id: d.id,
+        name: d.name,
+        views,
+      };
+    })
     .sort((a, b) => b.views - a.views)
     .slice(0, 5);
 
+  const maxViews = rawTop[0]?.views || 1;
+  const topDishes = rawTop.map((item) => ({
+    ...item,
+    percentage: Math.round((item.views / maxViews) * 100),
+  }));
+
   const totalDishViews = Object.values(dishViewsMap).reduce((a, b) => a + b, 0) || visits * 3;
+
+  // Day of week in France (0: Dimanche, 1: Lundi, ...)
+  const todayIndex = new Date().getDay();
+
+  // Weekly affluence model
+  const weekdayConfig = [
+    { dayName: 'Lundi', dayShort: 'Lun', dayIndex: 1, basePct: 45, peakHours: '12h30 - 13h45', status: 'calm' as const },
+    { dayName: 'Mardi', dayShort: 'Mar', dayIndex: 2, basePct: 58, peakHours: '12h15 - 14h00', status: 'moderate' as const },
+    { dayName: 'Mercredi', dayShort: 'Mer', dayIndex: 3, basePct: 65, peakHours: '12h00 - 14h15', status: 'moderate' as const },
+    { dayName: 'Jeudi', dayShort: 'Jeu', dayIndex: 4, basePct: 75, peakHours: '19h30 - 21h30', status: 'busy' as const },
+    { dayName: 'Vendredi', dayShort: 'Ven', dayIndex: 5, basePct: 94, peakHours: '19h00 - 22h30', status: 'very_busy' as const },
+    { dayName: 'Samedi', dayShort: 'Sam', dayIndex: 6, basePct: 98, peakHours: '12h30 - 14h30 & 19h30 - 23h00', status: 'very_busy' as const },
+    { dayName: 'Dimanche', dayShort: 'Dim', dayIndex: 0, basePct: 82, peakHours: '12h00 - 15h00', status: 'busy' as const },
+  ];
+
+  const weeklyAffluence: WeekdayAffluencePoint[] = weekdayConfig.map((item) => ({
+    ...item,
+    percentage: item.basePct,
+    isToday: item.dayIndex === todayIndex,
+  }));
 
   return {
     restaurantId,
@@ -297,8 +379,10 @@ export function getRestaurantTrafficSummary(
     totalVisits: visits,
     totalQrScans: qrScans,
     totalDishViews,
+    totalPhoneCalls: phoneCalls,
     currentLiveCapacity: capacity,
     status,
     topDishes,
+    weeklyAffluence,
   };
 }

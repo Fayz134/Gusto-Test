@@ -13,6 +13,7 @@ import {
   Droplets,
   Zap,
   Check,
+  Map,
 } from 'lucide-react';
 import { Language, MacroFilterType } from '../types';
 import { I18N_DICT, ALLERGENS_MASTER_LIST } from '../data/i18n';
@@ -32,6 +33,10 @@ interface HeroSearchProps {
   onToggleHalal?: () => void;
   isVeganOnly?: boolean;
   onToggleVegan?: () => void;
+  isOpenOnly?: boolean;
+  onToggleOpenOnly?: () => void;
+  onOpenMap?: () => void;
+  isMapActive?: boolean;
 }
 
 export const HeroSearch: React.FC<HeroSearchProps> = ({
@@ -49,6 +54,10 @@ export const HeroSearch: React.FC<HeroSearchProps> = ({
   onToggleHalal,
   isVeganOnly = false,
   onToggleVegan,
+  isOpenOnly = false,
+  onToggleOpenOnly,
+  onOpenMap,
+  isMapActive = false,
 }) => {
   const t = (key: string) => I18N_DICT[currentLang]?.[key] || key;
 
@@ -56,6 +65,7 @@ export const HeroSearch: React.FC<HeroSearchProps> = ({
     selectedAllergens.length +
     (isHalalOnly ? 1 : 0) +
     (isVeganOnly ? 1 : 0) +
+    (isOpenOnly ? 1 : 0) +
     (activeMacroFilter !== 'all' ? 1 : 0);
 
   const hasActiveFilters =
@@ -63,7 +73,8 @@ export const HeroSearch: React.FC<HeroSearchProps> = ({
     selectedAllergens.length > 0 ||
     searchQuery.trim() !== '' ||
     isHalalOnly ||
-    isVeganOnly;
+    isVeganOnly ||
+    isOpenOnly;
 
   const handleClearAllFilters = () => {
     onSearchChange('');
@@ -74,6 +85,9 @@ export const HeroSearch: React.FC<HeroSearchProps> = ({
     }
     if (isVeganOnly && onToggleVegan) {
       onToggleVegan();
+    }
+    if (isOpenOnly && onToggleOpenOnly) {
+      onToggleOpenOnly();
     }
   };
 
@@ -147,6 +161,27 @@ export const HeroSearch: React.FC<HeroSearchProps> = ({
               ) : null}
             </button>
 
+            {/* Carte Interactive Direct CTA Button */}
+            {onOpenMap && (
+              <button
+                type="button"
+                onClick={onOpenMap}
+                className={`px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition shadow-md shrink-0 cursor-pointer active:scale-98 min-h-[42px] border ${
+                  isMapActive
+                    ? 'bg-amber-400 text-stone-950 border-amber-300 ring-2 ring-amber-300/50'
+                    : 'bg-gradient-to-r from-amber-500/25 to-amber-600/25 hover:from-amber-500/35 hover:to-amber-600/35 text-amber-200 border-amber-400/40'
+                }`}
+                title="Explorer les restaurants sur la carte interactive géolocalisée"
+              >
+                <Map className={`w-4 h-4 ${isMapActive ? 'text-stone-950' : 'text-amber-300'}`} />
+                <span className="whitespace-nowrap">Carte Interactive</span>
+                <span className="hidden sm:inline-flex h-2 w-2 relative shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                </span>
+              </button>
+            )}
+
             {/* Geolocation Button */}
             <button
               onClick={onRequestGeolocation}
@@ -211,6 +246,24 @@ export const HeroSearch: React.FC<HeroSearchProps> = ({
               >
                 {t('allDishes')}
               </button>
+
+              {/* Ouvert actuellement quick chip */}
+              {onToggleOpenOnly && (
+                <button
+                  type="button"
+                  onClick={onToggleOpenOnly}
+                  className={`px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-semibold transition cursor-pointer shrink-0 flex items-center gap-1.5 border ${
+                    isOpenOnly
+                      ? 'bg-emerald-500 text-white shadow-sm font-bold border-emerald-400 ring-2 ring-emerald-400/40'
+                      : 'bg-white/10 hover:bg-white/20 text-stone-200 border-white/10'
+                  }`}
+                  title="Afficher uniquement les restaurants ouverts actuellement"
+                >
+                  <span className={`w-2 h-2 rounded-full ${isOpenOnly ? 'bg-white animate-pulse' : 'bg-emerald-400'}`}></span>
+                  <span>{t('openNowOnly') || 'Ouvert actuellement'}</span>
+                  {isOpenOnly && <Check className="w-3 h-3 text-white" />}
+                </button>
+              )}
 
               <button
                 type="button"
@@ -360,6 +413,19 @@ export const HeroSearch: React.FC<HeroSearchProps> = ({
                     <button
                       onClick={() => onSearchChange('')}
                       className="hover:text-red-300 cursor-pointer"
+                    >
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  </span>
+                )}
+
+                {isOpenOnly && (
+                  <span className="px-2 py-0.5 rounded-lg bg-emerald-500/30 text-emerald-200 border border-emerald-400/40 flex items-center gap-1 text-[10px] font-bold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span>{t('openNowOnly') || 'Ouvert actuellement'}</span>
+                    <button
+                      onClick={() => onToggleOpenOnly && onToggleOpenOnly()}
+                      className="hover:text-emerald-100 cursor-pointer ml-0.5"
                     >
                       <X className="w-2.5 h-2.5" />
                     </button>

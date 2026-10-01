@@ -42,6 +42,8 @@ import { I18N_DICT, ALLERGENS_MASTER_LIST } from '../data/i18n';
 import { formatPrice } from '../utils/geo';
 import { getAutoDishName, getAutoCategoryName, getAutoDishDesc } from '../utils/translator';
 import { RestaurantCustomizerModal } from './RestaurantCustomizerModal';
+import { RestaurantReviewsModal } from './RestaurantReviewsModal';
+import { trackPhoneCall } from '../utils/analytics';
 
 interface RestaurantViewProps {
   restaurant: Restaurant;
@@ -101,6 +103,7 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
   const t = (key: string) => I18N_DICT[currentLang]?.[key] || key;
 
   const [isCustomizerOpen, setIsCustomizerOpen] = useState(false);
+  const [isReviewsModalOpen, setIsReviewsModalOpen] = useState(false);
 
   // Customization styling variables
   const custom = restaurant.customization;
@@ -608,8 +611,28 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                     )}
                   </div>
 
-                  {/* Informations du restaurant : Adresse et Téléphone */}
+                  {/* Informations du restaurant : Adresse, Téléphone, Avis et Statistiques */}
                   <div className="flex flex-wrap items-center gap-2 mt-2 pt-0.5">
+                    {/* Avis & Recommandations Button */}
+                    <button
+                      type="button"
+                      onClick={() => setIsReviewsModalOpen(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300/90 shadow-2xs transition group text-xs cursor-pointer font-bold"
+                      title="Consulter les avis, critères 5 étoiles et recommandations de la communauté"
+                    >
+                      <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500 shrink-0" />
+                      <span>{restaurant.rating || 4.8} / 5</span>
+                      <span className="text-amber-800/80 font-normal">
+                        ({restaurant.reviewsCount || 34} avis)
+                      </span>
+                      {(restaurant.isGustoRecommended || (restaurant.rating || 4.8) >= 4.5) && (
+                        <span className="ml-1 inline-flex items-center gap-1 text-[10px] font-black text-amber-900 bg-amber-200/90 px-2 py-0.2 rounded-full border border-amber-400">
+                          <Crown className="w-2.5 h-2.5 fill-current" />
+                          <span className="hidden sm:inline">Recommandé par Gusto</span>
+                        </span>
+                      )}
+                    </button>
+
                     {restaurant.address && custom?.showAddressBadge !== false && (
                       <a
                         href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
@@ -629,6 +652,7 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                     {restaurant.phone && custom?.showPhoneBadge !== false && (
                       <a
                         href={`tel:${restaurant.phone.replace(/[^0-9+]/g, '')}`}
+                        onClick={() => trackPhoneCall(restaurant.id)}
                         className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300/80 shadow-2xs transition group text-xs cursor-pointer font-bold"
                         title={`Appeler ${restaurant.name} au ${restaurant.phone}`}
                       >
@@ -1790,6 +1814,21 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
           }
         }}
         onShowToast={onShowToast || (() => {})}
+      />
+
+      {/* Community Reviews & Ratings Modal */}
+      <RestaurantReviewsModal
+        restaurant={restaurant}
+        isOpen={isReviewsModalOpen}
+        onClose={() => setIsReviewsModalOpen(false)}
+        onReviewAdded={(updated) => {
+          if (onUpdateRestaurant) {
+            onUpdateRestaurant(updated);
+          }
+          if (onShowToast) {
+            onShowToast('Votre avis a été publié avec succès !');
+          }
+        }}
       />
     </div>
   );

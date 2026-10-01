@@ -107,6 +107,88 @@ export interface Restaurant {
   customization?: RestaurantCustomization;
   isWebVerified?: boolean;
   verifiedSources?: { title: string; uri: string }[];
+  isNew?: boolean;
+  createdAt?: string;
+  rating?: number;
+  reviewsCount?: number;
+  isGustoRecommended?: boolean;
+  reviews?: RestaurantReview[];
+  amenities?: ('terrasse' | 'parking' | 'climatisation' | 'chiens' | 'pmr' | string)[];
+}
+
+export interface DietaryProfile {
+  allergens: string[];
+  isHalal: boolean;
+  isVegan: boolean;
+  amenities: string[];
+  maxKcal?: number;
+  savedAt?: string;
+}
+
+export type AmenityType = 'terrasse' | 'parking' | 'climatisation' | 'chiens' | 'pmr';
+
+export interface AmenityDefinition {
+  id: AmenityType;
+  label: string;
+  emoji: string;
+  shortLabel: string;
+  description: string;
+}
+
+export const AMENITIES_MASTER_LIST: AmenityDefinition[] = [
+  {
+    id: 'terrasse',
+    label: 'Terrasse ombragée',
+    shortLabel: 'Terrasse',
+    emoji: '🌿',
+    description: 'Espace extérieur ombragé avec brumisateurs ou verdure provençale',
+  },
+  {
+    id: 'parking',
+    label: 'Parking gratuit',
+    shortLabel: 'Parking',
+    emoji: '🅿️',
+    description: 'Places de stationnement gratuites réservées ou à proximité immédiate',
+  },
+  {
+    id: 'climatisation',
+    label: 'Climatisation',
+    shortLabel: 'Clim',
+    emoji: '❄️',
+    description: 'Salle rafraîchie idéale pour les journées chaudes en Provence',
+  },
+  {
+    id: 'chiens',
+    label: 'Chiens bienvenus',
+    shortLabel: 'Chiens OK',
+    emoji: '🐾',
+    description: 'Animaux de compagnie acceptés avec gamelle d\'eau mise à disposition',
+  },
+  {
+    id: 'pmr',
+    label: 'Accès PMR',
+    shortLabel: 'Accès PMR',
+    emoji: '♿',
+    description: 'Accès plain-pied, rampe et sanitaires aux normes PMR',
+  },
+];
+
+export interface RestaurantReviewCriteria {
+  foodQuality: number; // 1-5 étoiles
+  ambiance: number; // 1-5 étoiles
+  dietaryCompliance: number; // 1-5 étoiles (Respect des régimes & allergènes)
+}
+
+export interface RestaurantReview {
+  id: string;
+  restaurantId: string;
+  authorName: string;
+  authorTag?: string; // ex: "Gourmet vérifié", "Sans Gluten", "Végétarien", "Habitué"
+  rating: number; // Note globale sur 5
+  criteria: RestaurantReviewCriteria;
+  comment: string;
+  date: string;
+  isGustoRecommended?: boolean;
 }
 
 export interface AllergenItem {
