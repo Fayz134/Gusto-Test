@@ -142,29 +142,12 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
 
         {/* CENTER SECTION: DESKTOP NAVIGATION PILLS */}
         <div className="hidden md:flex items-center gap-1 lg:gap-1.5 text-xs font-semibold text-stone-300 bg-white/5 p-1 rounded-full border border-white/10">
-          {/* 1. Restaurants Hub */}
-          <button
-            type="button"
-            onClick={handlePortalClick}
-            className={`px-3 py-1.5 rounded-full transition-all cursor-pointer flex items-center gap-1.5 ${
-              currentView === 'portal' && !isMapActive
-                ? 'bg-white/20 text-white font-bold shadow-xs border border-white/20'
-                : 'hover:text-white hover:bg-white/10 text-stone-300'
-            }`}
-          >
-            <UtensilsCrossed className="w-3.5 h-3.5 text-amber-400" />
-            <span>{t('restaurants') || 'Restaurants'}</span>
-            {restaurantsCount !== undefined && (
-              <span className="text-[10px] opacity-75 font-mono">({restaurantsCount})</span>
-            )}
-          </button>
-
-          {/* 2. Carte Interactive (Live GPS) */}
+          {/* 1. Carte Interactive (Live GPS) */}
           {onOpenMap && (
             <button
               type="button"
               onClick={onOpenMap}
-              className={`px-3 py-1.5 rounded-full transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`px-3.5 py-1.5 rounded-full transition-all cursor-pointer flex items-center gap-1.5 ${
                 isMapActive
                   ? 'bg-amber-400 text-stone-950 font-black shadow-xs border border-amber-300 ring-2 ring-amber-400/30'
                   : 'hover:text-amber-300 hover:bg-white/10 text-stone-200'
@@ -180,7 +163,7 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
             </button>
           )}
 
-          {/* 3. Allergènes with dynamic count badge */}
+          {/* 2. Allergènes with dynamic count badge */}
           <button
             type="button"
             onClick={handleAllergensClick}
@@ -200,7 +183,7 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
             )}
           </button>
 
-          {/* 4. Mon Profil Diététique Sauvegardé */}
+          {/* 3. Mon Profil Diététique Sauvegardé */}
           {onOpenDietaryProfile && (
             <button
               type="button"
@@ -224,7 +207,7 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
           )}
         </div>
 
-        {/* RIGHT SECTION: CTA INSCRIRE UN RESTAURANT, GEOLOCATION, LANGUAGE, PWA */}
+        {/* RIGHT SECTION: CTA INSCRIRE UN RESTAURANT, GEOLOCATION, LANGUAGE */}
         <div className="flex items-center gap-1.5 sm:gap-2">
           {/* Location button with live GPS detection */}
           <button
@@ -245,9 +228,6 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
             </span>
             <span className="truncate max-w-[90px]">{userCoords.label || 'Aubagne'}</span>
           </button>
-
-          {/* PWA 1-Click Install Button (Desktop & Tablet) */}
-          <PWAInstallButton variant="nav" className="hidden lg:flex" />
 
           {/* CTA: Inscrire mon restaurant (Sole professional action in navbar) */}
           {onOpenRegistrationModal && (
@@ -361,50 +341,34 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
               </button>
             )}
 
-            <div className="grid grid-cols-2 gap-1.5 text-xs font-semibold">
-              {/* Restaurants Hub */}
-              <button
-                type="button"
-                onClick={handlePortalClick}
-                className={`p-3 rounded-2xl flex items-center gap-2.5 transition cursor-pointer text-left ${
-                  currentView === 'portal' && !isMapActive
-                    ? 'bg-white/20 text-white font-bold border border-white/20'
-                    : 'bg-white/5 hover:bg-white/10 text-stone-300'
-                }`}
-              >
-                <UtensilsCrossed className="w-4 h-4 text-amber-400 shrink-0" />
+            {/* Allergènes */}
+            <button
+              type="button"
+              onClick={handleAllergensClick}
+              className={`w-full p-3 rounded-2xl flex items-center justify-between transition cursor-pointer text-left ${
+                activeAllergensCount > 0
+                  ? 'bg-rose-500/25 border border-rose-500/40 text-rose-200 font-bold'
+                  : 'bg-white/5 hover:bg-white/10 text-stone-300 border border-white/5'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
                 <div>
-                  <div className="font-bold">Explorer</div>
+                  <div className="font-bold flex items-center gap-1.5 text-xs">
+                    <span>Filtre Allergènes</span>
+                    {activeAllergensCount > 0 && (
+                      <span className="bg-rose-500 text-white font-black text-[10px] px-1.5 py-0.2 rounded-full">
+                        {activeAllergensCount} actif{activeAllergensCount > 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
                   <div className="text-[10px] text-stone-400 font-normal">
-                    {restaurantsCount !== undefined ? `${restaurantsCount} adresses` : 'Guide complet'}
+                    Exclure gluten, lactose, fruits à coque, etc.
                   </div>
                 </div>
-              </button>
-
-              {/* Allergènes */}
-              <button
-                type="button"
-                onClick={handleAllergensClick}
-                className={`p-3 rounded-2xl flex items-center justify-between transition cursor-pointer text-left ${
-                  activeAllergensCount > 0
-                    ? 'bg-rose-500/25 border border-rose-500/40 text-rose-200 font-bold'
-                    : 'bg-white/5 hover:bg-white/10 text-stone-300'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
-                  <div>
-                    <div className="font-bold">Allergènes</div>
-                    <div className="text-[10px] text-stone-400 font-normal">Filtres sélectifs</div>
-                  </div>
-                </div>
-                {activeAllergensCount > 0 && (
-                  <span className="bg-rose-500 text-white font-black text-[10px] px-1.5 py-0.5 rounded-full">
-                    {activeAllergensCount}
-                  </span>
-                )}
-              </button>
-            </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-stone-400" />
+            </button>
 
             {/* Mon Profil Diététique Sauvegardé */}
             {onOpenDietaryProfile && (
