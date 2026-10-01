@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="bgGrad" cx="50%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#ba3525"/>
+      <stop offset="60%" stop-color="#99281a"/>
+      <stop offset="100%" stop-color="#5a100a"/>
+    </radialGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a"/>
+      <stop offset="50%" stop-color="#fbbf24"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <!-- Background Base with subtle border -->
+  <rect width="512" height="512" rx="128" fill="url(#bgGrad)"/>
+  <rect width="504" height="504" x="4" y="4" rx="124" fill="none" stroke="url(#goldGrad)" stroke-width="8" opacity="0.6"/>
+
+  <!-- Outer Golden Ring -->
+  <circle cx="256" cy="256" r="190" fill="none" stroke="url(#goldGrad)" stroke-width="6" opacity="0.85" filter="url(#shadow)"/>
+
+  <!-- Cloche Dome Arch -->
+  <path d="M128 320 C128 190 384 190 384 320 Z" fill="url(#goldGrad)" opacity="0.15"/>
+
+  <!-- Stylized Elegant "G" Monogram -->
+  <path d="M 330 190 C 300 160 212 160 182 195 C 150 232 150 290 182 328 C 215 365 305 365 336 330 C 348 316 352 298 352 276 L 256 276 L 256 244 L 380 244 C 382 254 384 268 384 282 C 384 320 368 354 340 380 C 298 420 205 420 156 374 C 114 332 114 248 156 206 C 200 160 292 156 348 196 Z"
+        fill="url(#goldGrad)" filter="url(#shadow)"/>
+
+  <!-- Star accents -->
+  <polygon points="256,90 262,106 278,106 265,116 270,132 256,122 242,132 247,116 234,106 250,106" fill="url(#goldGrad)"/>
+  <polygon points="120,256 124,264 133,264 126,270 129,278 120,273 111,278 114,270 107,264 116,264" fill="url(#goldGrad)" opacity="0.8"/>
+  <polygon points="392,256 396,264 405,264 398,270 401,278 392,273 383,278 386,270 379,264 388,264" fill="url(#goldGrad)" opacity="0.8"/>
+</svg>

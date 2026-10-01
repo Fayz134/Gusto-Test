@@ -20,6 +20,8 @@ import { DietaryProfileModal } from './components/DietaryProfileModal';
 import { ShareRestaurantModal } from './components/ShareRestaurantModal';
 import { getSavedDietaryProfile } from './utils/dietaryProfile';
 import { DietaryProfile } from './types';
+import { OfflineIndicator } from './components/OfflineIndicator';
+import { PWAInstallButton } from './components/PWAInstallButton';
 import { KeyRound, Crown, LogOut, Building2, Sparkles, LayoutGrid, Map } from 'lucide-react';
 import {
   trackSiteVisit,
@@ -929,6 +931,9 @@ export default function App() {
 
           {/* Directory section */}
           <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-10 grow">
+            {/* PWA 1-CLICK MOBILE INSTALL BANNER */}
+            <PWAInstallButton variant="banner" onShowToast={showToast} />
+
             {/* SECTION 1: NOUVEAUX RESTAURANTS (3 DERNIERS AJOUTS) */}
             {filteredLatestRestaurants.length > 0 && (
               <section
@@ -1357,6 +1362,9 @@ export default function App() {
 
       {/* TOAST FEEDBACK */}
       <Toast visible={toast.visible} message={toast.message} />
+
+      {/* PWA OFFLINE CONNECTIVITY INDICATOR */}
+      <OfflineIndicator />
     </div>
   );
 }

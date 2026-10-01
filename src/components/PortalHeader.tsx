@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Language } from '../types';
 import { I18N_DICT } from '../data/i18n';
+import { PWAInstallButton } from './PWAInstallButton';
 
 export interface PortalHeaderProps {
   currentLang: Language;
@@ -342,6 +343,9 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
             <span className="truncate max-w-[90px]">{userCoords.label || 'Aubagne'}</span>
           </button>
 
+          {/* PWA 1-Click Install Button (Desktop & Tablet) */}
+          <PWAInstallButton variant="nav" className="hidden lg:flex" />
+
           {/* CTA: Inscrire mon restaurant (High conversion, modern gradient) */}
           {onOpenRegistrationModal && (
             <button
@@ -417,6 +421,11 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
               Navigation
             </p>
             <div className="grid grid-cols-2 gap-1.5 text-xs font-semibold">
+              {/* PWA 1-Click Mobile Install Option */}
+              <div className="col-span-2">
+                <PWAInstallButton variant="hero" className="w-full justify-between" />
+              </div>
+
               {/* Carte Interactive Mobile Hero Button */}
               {onOpenMap && (
                 <button
