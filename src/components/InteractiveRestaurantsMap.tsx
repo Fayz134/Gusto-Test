@@ -223,6 +223,27 @@ export const InteractiveRestaurantsMap: React.FC<InteractiveRestaurantsMapProps>
     }
   }, [initialSelectedAllergens]);
 
+  // Close filter drawer on Escape key and invalidate map size
+  useEffect(() => {
+    if (mapInstanceRef.current) {
+      const timer = setTimeout(() => {
+        mapInstanceRef.current?.invalidateSize();
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [isFilterPanelOpen]);
+
+  useEffect(() => {
+    if (!isFilterPanelOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsFilterPanelOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFilterPanelOpen]);
+
   // Geolocation & Locate Me State
   const [isLocating, setIsLocating] = useState(false);
   const [locationStatus, setLocationStatus] = useState<'idle' | 'locating' | 'located' | 'error'>('idle');
@@ -1126,536 +1147,626 @@ export const InteractiveRestaurantsMap: React.FC<InteractiveRestaurantsMapProps>
     selectedAllergens.length +
     selectedAmenities.length;
 
+  const toggleAmenity = (amenityId: string) => {
+    setSelectedAmenities((prev) =>
+      prev.includes(amenityId)
+        ? prev.filter((id) => id !== amenityId)
+        : [...prev, amenityId]
+    );
+    if (onShowToast) {
+      const item = AMENITIES_MASTER_LIST.find((a) => a.id === amenityId);
+      const isAdding = !selectedAmenities.includes(amenityId);
+      onShowToast(
+        isAdding
+          ? `Filtre activé : ${item?.label || amenityId}`
+          : `Filtre retiré : ${item?.label || amenityId}`
+      );
+    }
+  };
+
+  const cycleRadius = () => {
+    const steps = [0, 1, 3, 5, 10];
+    const currentIndex = steps.indexOf(selectedRadiusKm);
+    const next = steps[(currentIndex + 1) % steps.length];
+    setSelectedRadiusKm(next);
+    if (onShowToast) {
+      onShowToast(next === 0 ? 'Rayon : Sans restriction' : `Rayon sélectionné : ${next} km`);
+    }
+  };
+
+  const resetAllFilters = () => {
+    setSelectedRadiusKm(0);
+    setIsOpenNowOnly(false);
+    setMinRatingFilter(0);
+    setSelectedCuisineFilter('all');
+    setSelectedAmenities([]);
+    setSelectedAllergens([]);
+    if (onShowToast) {
+      onShowToast('Tous les filtres de la carte ont été réinitialisés');
+    }
+  };
+
   return (
-    <div className="relative w-full rounded-3xl overflow-hidden border border-stone-200/90 shadow-xl bg-stone-100 flex flex-col md:flex-row h-[660px]">
+    <div className="relative w-full rounded-3xl overflow-hidden border border-stone-200/90 shadow-xl bg-stone-100 flex flex-col md:flex-row min-h-[640px] md:h-[680px]">
       {/* MAP CANVAS CONTAINER */}
       <div className="relative w-full md:w-7/12 lg:w-2/3 h-full flex flex-col">
         {/* Leaflet map container */}
         <div ref={mapContainerRef} className="w-full h-full z-0" />
 
-        {/* TOP CONTROLS OVERLAY ON MAP */}
-        <div className="absolute top-3 left-3 right-3 z-10 flex items-center justify-between pointer-events-none gap-2 flex-wrap">
-          {/* Quick city / count indicator & OSM status */}
-          <div className="pointer-events-auto flex items-center gap-1.5 flex-wrap">
-            <div className="bg-stone-900/95 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2 shadow-lg border border-white/20">
-              <MapPin className="w-3.5 h-3.5 text-amber-400" />
-              <span className="font-bold">Aubagne</span>
-              <span className="text-stone-400">•</span>
-              <span className="text-amber-300 font-mono text-[11px] font-bold">
-                {filteredPartnerRestaurants.length}
-                {filteredPartnerRestaurants.length !== restaurants.length && ` / ${restaurants.length}`}
-              </span>
-            </div>
-
-            {/* Quick Toggle: Ouvert maintenant 🟢 */}
-            <button
-              type="button"
-              onClick={() => {
-                setIsOpenNowOnly((prev) => !prev);
-                if (onShowToast) {
-                  onShowToast(!isOpenNowOnly ? 'Filtre : Ouverts maintenant 🟢' : 'Tous les horaires affichés');
-                }
-              }}
-              className={`px-3 py-1.5 rounded-full text-xs font-bold shadow-md transition flex items-center gap-1.5 border cursor-pointer active:scale-95 ${
-                isOpenNowOnly
-                  ? 'bg-emerald-600 text-white border-emerald-500 ring-2 ring-emerald-400/40'
-                  : 'bg-white/95 hover:bg-white text-stone-800 border-stone-200'
-              }`}
-              title="Afficher uniquement les restaurants ouverts actuellement"
-            >
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              <span>Ouvert direct</span>
-            </button>
-          </div>
-
-          {/* Action buttons on top right */}
-          <div className="pointer-events-auto flex items-center gap-1.5">
-            {/* Filter Toggle Button with Badge */}
-            <button
-              type="button"
-              onClick={() => setIsFilterPanelOpen((prev) => !prev)}
-              className={`px-3 py-1.5 rounded-full text-xs font-bold shadow-md hover:shadow-lg transition flex items-center gap-1.5 border cursor-pointer active:scale-95 ${
-                totalActiveFiltersCount > 0
-                  ? 'bg-amber-400 text-stone-950 border-amber-300 font-extrabold ring-2 ring-amber-400/40'
-                  : isFilterPanelOpen
-                  ? 'bg-stone-900 text-white border-stone-800'
-                  : 'bg-white/95 hover:bg-white text-stone-800 border-stone-200'
-              }`}
-              title="Ouvrir les filtres (Rayon, commodités, allergènes, notes, cuisines)"
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5 text-amber-500" />
-              <span>Filtres</span>
-              {totalActiveFiltersCount > 0 && (
-                <span className="w-4 h-4 rounded-full bg-stone-900 text-amber-300 text-[10px] font-black flex items-center justify-center">
-                  {totalActiveFiltersCount}
+        {/* TOP CONTROLS & FILTER OVERLAY ON MAP */}
+        <div className="absolute top-3 left-3 right-3 z-10 pointer-events-none flex flex-col gap-2">
+          {/* ROW 1: PRIMARY CONTROLS BAR */}
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            {/* Left: City / Count & Open Now direct */}
+            <div className="pointer-events-auto flex items-center gap-1.5 flex-wrap">
+              <div className="bg-stone-900/95 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2 shadow-lg border border-white/20">
+                <MapPin className="w-3.5 h-3.5 text-amber-400" />
+                <span className="font-bold">Aubagne</span>
+                <span className="text-stone-400">•</span>
+                <span className="text-amber-300 font-mono text-[11px] font-bold">
+                  {filteredPartnerRestaurants.length}
+                  {filteredPartnerRestaurants.length !== restaurants.length && ` / ${restaurants.length}`}
                 </span>
-              )}
-            </button>
+              </div>
 
-            {/* Map Style Selector Switcher (Standard, Dark, Satellite) */}
-            <div className="relative">
+              {/* Quick Toggle: Ouvert maintenant 🟢 */}
               <button
                 type="button"
-                onClick={() => setIsStylePickerOpen((prev) => !prev)}
-                className="px-2.5 py-1.5 bg-white/95 hover:bg-white text-stone-800 rounded-full shadow-md transition border border-stone-200 cursor-pointer active:scale-95 text-xs font-bold flex items-center gap-1"
-                title="Changer le fond de carte (Standard, Sombre, Satellite)"
+                onClick={() => {
+                  setIsOpenNowOnly((prev) => !prev);
+                  if (onShowToast) {
+                    onShowToast(!isOpenNowOnly ? 'Filtre : Ouverts maintenant 🟢' : 'Tous les horaires affichés');
+                  }
+                }}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold shadow-md transition flex items-center gap-1.5 border cursor-pointer active:scale-95 ${
+                  isOpenNowOnly
+                    ? 'bg-emerald-600 text-white border-emerald-500 ring-2 ring-emerald-400/40'
+                    : 'bg-white/95 hover:bg-white text-stone-800 border-stone-200'
+                }`}
+                title="Afficher uniquement les restaurants ouverts actuellement"
               >
-                <span>{MAP_STYLES[currentMapStyle].icon}</span>
-                <span className="hidden sm:inline">{MAP_STYLES[currentMapStyle].label}</span>
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span>Ouvert direct</span>
               </button>
-
-              {isStylePickerOpen && (
-                <div className="absolute right-0 top-10 z-30 bg-white/98 backdrop-blur-md rounded-2xl border border-stone-200 shadow-xl p-1.5 w-44 space-y-1 animate-in fade-in zoom-in-95 duration-100">
-                  <div className="px-2 py-1 text-[10px] font-bold text-stone-400 uppercase tracking-wider">
-                    Fond de carte
-                  </div>
-                  {(['standard', 'dark', 'satellite'] as MapStyleType[]).map((styleKey) => {
-                    const st = MAP_STYLES[styleKey];
-                    const isSelected = currentMapStyle === styleKey;
-                    return (
-                      <button
-                        key={styleKey}
-                        type="button"
-                        onClick={() => handleChangeMapStyle(styleKey)}
-                        className={`w-full px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center justify-between cursor-pointer transition ${
-                          isSelected
-                            ? 'bg-[#99281a] text-white shadow-xs font-bold'
-                            : 'hover:bg-stone-100 text-stone-700'
-                        }`}
-                      >
-                        <span className="flex items-center gap-1.5">
-                          <span>{st.icon}</span>
-                          <span>{st.label}</span>
-                        </span>
-                        {isSelected && <Check className="w-3.5 h-3.5 text-amber-300" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
             </div>
 
-            {/* Locate Me */}
-            <button
-              type="button"
-              onClick={handleLocateMe}
-              disabled={isLocating}
-              className={`px-3 py-1.5 rounded-full text-xs font-bold shadow-md hover:shadow-lg transition flex items-center gap-1.5 border cursor-pointer active:scale-95 ${
-                locationStatus === 'located'
-                  ? 'bg-blue-50 text-blue-900 border-blue-300 ring-2 ring-blue-400/20'
-                  : 'bg-white/95 hover:bg-white text-stone-800 border-stone-200'
-              }`}
-              title="Centrer la carte sur ma position actuelle (GPS en direct)"
-            >
-              {isLocating ? (
-                <Loader2 className="w-3.5 h-3.5 text-blue-600 animate-spin" />
-              ) : (
-                <LocateFixed
-                  className={`w-3.5 h-3.5 ${
-                    locationStatus === 'located' ? 'text-blue-600' : 'text-[#99281a]'
-                  }`}
-                />
-              )}
-              <span className="hidden sm:inline">GPS</span>
-            </button>
+            {/* Right: Full Filters Drawer Toggle & Map Utilities */}
+            <div className="pointer-events-auto flex items-center gap-1.5">
+              {/* Full Filter Drawer Toggle Button */}
+              <button
+                type="button"
+                onClick={() => setIsFilterPanelOpen((prev) => !prev)}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold shadow-md hover:shadow-lg transition flex items-center gap-1.5 border cursor-pointer active:scale-95 ${
+                  totalActiveFiltersCount > 0
+                    ? 'bg-amber-400 text-stone-950 border-amber-300 font-extrabold ring-2 ring-amber-400/40 shadow-amber-400/30'
+                    : isFilterPanelOpen
+                    ? 'bg-stone-900 text-white border-stone-800'
+                    : 'bg-white/95 hover:bg-white text-stone-800 border-stone-200'
+                }`}
+                title="Ouvrir le panneau complet des filtres (Rayon, terrasse, parking, allergènes, cuisines, notes)"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5 text-[#99281a]" />
+                <span>Tous les filtres</span>
+                {totalActiveFiltersCount > 0 && (
+                  <span className="w-4.5 h-4.5 rounded-full bg-stone-900 text-amber-300 text-[10px] font-black flex items-center justify-center shrink-0">
+                    {totalActiveFiltersCount}
+                  </span>
+                )}
+              </button>
 
-            {/* Fit All */}
-            <button
-              type="button"
-              onClick={handleFitAllRestaurants}
-              className="p-1.5 bg-white/95 hover:bg-white text-stone-800 rounded-full shadow-md hover:shadow-lg transition border border-stone-200 cursor-pointer active:scale-95"
-              title="Voir tous les partenaires d'un coup"
-            >
-              <Layers className="w-4 h-4 text-stone-700" />
-            </button>
+              {/* Map Style Selector Switcher (Standard, Dark, Satellite) */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsStylePickerOpen((prev) => !prev)}
+                  className="px-2.5 py-1.5 bg-white/95 hover:bg-white text-stone-800 rounded-full shadow-md transition border border-stone-200 cursor-pointer active:scale-95 text-xs font-bold flex items-center gap-1"
+                  title="Changer le fond de carte (Standard, Sombre, Satellite)"
+                >
+                  <span>{MAP_STYLES[currentMapStyle].icon}</span>
+                  <span className="hidden sm:inline">{MAP_STYLES[currentMapStyle].label}</span>
+                </button>
+
+                {isStylePickerOpen && (
+                  <div className="absolute right-0 top-10 z-30 bg-white/98 backdrop-blur-md rounded-2xl border border-stone-200 shadow-xl p-1.5 w-44 space-y-1 animate-in fade-in zoom-in-95 duration-100">
+                    <div className="px-2 py-1 text-[10px] font-bold text-stone-400 uppercase tracking-wider">
+                      Fond de carte
+                    </div>
+                    {(['standard', 'dark', 'satellite'] as MapStyleType[]).map((styleKey) => {
+                      const st = MAP_STYLES[styleKey];
+                      const isSelected = currentMapStyle === styleKey;
+                      return (
+                        <button
+                          key={styleKey}
+                          type="button"
+                          onClick={() => handleChangeMapStyle(styleKey)}
+                          className={`w-full px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center justify-between cursor-pointer transition ${
+                            isSelected
+                              ? 'bg-[#99281a] text-white shadow-xs font-bold'
+                              : 'hover:bg-stone-100 text-stone-700'
+                          }`}
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <span>{st.icon}</span>
+                            <span>{st.label}</span>
+                          </span>
+                          {isSelected && <Check className="w-3.5 h-3.5 text-amber-300" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Locate Me */}
+              <button
+                type="button"
+                onClick={handleLocateMe}
+                disabled={isLocating}
+                className={`px-2.5 py-1.5 rounded-full text-xs font-bold shadow-md hover:shadow-lg transition flex items-center gap-1.5 border cursor-pointer active:scale-95 ${
+                  locationStatus === 'located'
+                    ? 'bg-blue-50 text-blue-900 border-blue-300 ring-2 ring-blue-400/20'
+                    : 'bg-white/95 hover:bg-white text-stone-800 border-stone-200'
+                }`}
+                title="Centrer la carte sur ma position actuelle (GPS en direct)"
+              >
+                {isLocating ? (
+                  <Loader2 className="w-3.5 h-3.5 text-blue-600 animate-spin" />
+                ) : (
+                  <LocateFixed
+                    className={`w-3.5 h-3.5 ${
+                      locationStatus === 'located' ? 'text-blue-600' : 'text-[#99281a]'
+                    }`}
+                  />
+                )}
+                <span className="hidden sm:inline">GPS</span>
+              </button>
+
+              {/* Fit All */}
+              <button
+                type="button"
+                onClick={handleFitAllRestaurants}
+                className="p-1.5 bg-white/95 hover:bg-white text-stone-800 rounded-full shadow-md hover:shadow-lg transition border border-stone-200 cursor-pointer active:scale-95"
+                title="Voir tous les partenaires d'un coup"
+              >
+                <Layers className="w-4 h-4 text-stone-700" />
+              </button>
+            </div>
           </div>
-        </div>
 
-        {/* ACTIVE FILTERS CHIPS BAR */}
-        {totalActiveFiltersCount > 0 && (
-          <div className="absolute top-14 left-3 z-10 pointer-events-auto flex items-center gap-1.5 flex-wrap max-w-[calc(100%-2rem)]">
-            {/* Radius Chip */}
-            {selectedRadiusKm > 0 && (
-              <span className="bg-amber-500 text-stone-950 font-black text-[11px] px-2.5 py-1 rounded-full shadow-md border border-amber-400 flex items-center gap-1.5">
-                <Compass className="w-3 h-3 text-stone-950" />
-                <span>Rayon : {selectedRadiusKm} km</span>
-                <button
-                  type="button"
-                  onClick={() => setSelectedRadiusKm(0)}
-                  className="hover:bg-amber-600/30 rounded-full p-0.5 cursor-pointer ml-0.5"
-                  title="Supprimer la restriction de distance"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            )}
+          {/* ROW 2: QUICK-FILTER HORIZONTAL STRIP (INTEGRATED DIRECTLY ON MAP) */}
+          <div className="pointer-events-auto flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 max-w-full">
+            {/* Quick Radius cycle pill */}
+            <button
+              type="button"
+              onClick={cycleRadius}
+              className={`px-2.5 py-1 rounded-full text-[11px] font-bold shadow-md transition flex items-center gap-1 border shrink-0 cursor-pointer active:scale-95 ${
+                selectedRadiusKm > 0
+                  ? 'bg-amber-400 text-stone-950 border-amber-300 ring-2 ring-amber-400/30'
+                  : 'bg-white/95 hover:bg-white text-stone-700 border-stone-200'
+              }`}
+              title="Cliquer pour changer le rayon de distance (1km, 3km, 5km, 10km, Tous)"
+            >
+              <Compass className={`w-3 h-3 ${selectedRadiusKm > 0 ? 'text-stone-950' : 'text-amber-600'}`} />
+              <span>Rayon : {selectedRadiusKm === 0 ? 'Tous' : `${selectedRadiusKm} km`}</span>
+            </button>
 
-            {/* Open Now Chip */}
-            {isOpenNowOnly && (
-              <span className="bg-emerald-700 text-white font-black text-[11px] px-2.5 py-1 rounded-full shadow-md border border-emerald-600 flex items-center gap-1.5">
-                <span>🟢</span>
-                <span>Ouvert maintenant</span>
-                <button
-                  type="button"
-                  onClick={() => setIsOpenNowOnly(false)}
-                  className="hover:bg-emerald-800 rounded-full p-0.5 cursor-pointer ml-0.5"
-                  title="Supprimer ce filtre"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            )}
-
-            {/* Amenities Chips */}
-            {selectedAmenities.map((amenityId) => {
-              const item = AMENITIES_MASTER_LIST.find((a) => a.id === amenityId);
+            {/* Quick Amenities direct toggles */}
+            {AMENITIES_MASTER_LIST.map((amenity) => {
+              const isActive = selectedAmenities.includes(amenity.id);
               return (
-                <span
-                  key={amenityId}
-                  className="bg-stone-900 text-white font-bold text-[11px] px-2.5 py-1 rounded-full shadow-md border border-stone-800 flex items-center gap-1.5"
+                <button
+                  key={amenity.id}
+                  type="button"
+                  onClick={() => toggleAmenity(amenity.id)}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-bold shadow-md transition flex items-center gap-1 border shrink-0 cursor-pointer active:scale-95 ${
+                    isActive
+                      ? 'bg-stone-900 text-white border-stone-800 ring-2 ring-stone-900/30'
+                      : 'bg-white/95 hover:bg-white text-stone-700 border-stone-200'
+                  }`}
+                  title={`Filtrer par ${amenity.label}`}
                 >
-                  <span>{item?.emoji || '✨'}</span>
-                  <span>{item?.shortLabel || amenityId}</span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSelectedAmenities((prev) => prev.filter((id) => id !== amenityId))
-                    }
-                    className="hover:bg-stone-800 rounded-full p-0.5 cursor-pointer ml-0.5"
-                    title="Supprimer ce filtre"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
+                  <span>{amenity.emoji}</span>
+                  <span>{amenity.shortLabel}</span>
+                  {isActive && <Check className="w-2.5 h-2.5 text-amber-400 ml-0.5" />}
+                </button>
               );
             })}
 
-            {/* Allergen chips */}
-            {selectedAllergens.map((algId) => {
-              const item = ALLERGENS_MASTER_LIST.find((a) => a.id === algId);
-              return (
-                <span
-                  key={algId}
-                  className="bg-rose-600 text-white font-extrabold text-[11px] px-2.5 py-1 rounded-full shadow-md border border-rose-500 flex items-center gap-1.5"
-                >
-                  <span>{item?.icon || '🚫'}</span>
-                  <span>Sans {item?.name.split('/')[0].trim() || algId}</span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSelectedAllergens((prev) => prev.filter((id) => id !== algId))
-                    }
-                    className="hover:bg-rose-700 rounded-full p-0.5 cursor-pointer ml-0.5"
-                    title="Supprimer ce filtre allergène"
-                  >
-                    <X className="w-3 h-3 text-white" />
-                  </button>
-                </span>
-              );
-            })}
+            {/* Quick Rating 4.5+ ★ toggle */}
+            <button
+              type="button"
+              onClick={() => setMinRatingFilter((prev) => (prev >= 4.5 ? 0 : 4.5))}
+              className={`px-2.5 py-1 rounded-full text-[11px] font-bold shadow-md transition flex items-center gap-1 border shrink-0 cursor-pointer active:scale-95 ${
+                minRatingFilter >= 4.5
+                  ? 'bg-amber-400 text-stone-950 border-amber-300 ring-2 ring-amber-400/30'
+                  : 'bg-white/95 hover:bg-white text-stone-700 border-stone-200'
+              }`}
+              title="Filtrer les restaurants notés 4.5+ étoiles"
+            >
+              <Star className="w-3 h-3 fill-amber-400 text-amber-500" />
+              <span>4.5+ ★</span>
+            </button>
 
-            {/* Cuisine chip */}
-            {selectedCuisineFilter !== 'all' && (
-              <span className="bg-amber-400 text-stone-950 font-extrabold text-[11px] px-2.5 py-1 rounded-full shadow-md border border-amber-300 flex items-center gap-1.5">
-                <span>{CUISINE_FILTER_OPTIONS.find((c) => c.id === selectedCuisineFilter)?.emoji}</span>
-                <span>{CUISINE_FILTER_OPTIONS.find((c) => c.id === selectedCuisineFilter)?.label}</span>
+            {/* Allergens active indicator chip if present */}
+            {selectedAllergens.length > 0 && (
+              <span className="bg-rose-600 text-white font-black text-[11px] px-2.5 py-1 rounded-full shadow-md border border-rose-500 flex items-center gap-1 shrink-0">
+                <ShieldAlert className="w-3 h-3 text-white" />
+                <span>{selectedAllergens.length} allergène(s) exclu(s)</span>
                 <button
                   type="button"
-                  onClick={() => setSelectedCuisineFilter('all')}
-                  className="hover:bg-amber-500/40 rounded-full p-0.5 cursor-pointer ml-0.5"
-                  title="Supprimer ce filtre"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            )}
-
-            {/* Rating chip */}
-            {minRatingFilter > 0 && (
-              <span className="bg-stone-900 text-amber-300 font-extrabold text-[11px] px-2.5 py-1 rounded-full shadow-md border border-amber-400/40 flex items-center gap-1.5">
-                <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                <span>{minRatingFilter}+ ★</span>
-                <button
-                  type="button"
-                  onClick={() => setMinRatingFilter(0)}
-                  className="hover:bg-white/20 rounded-full p-0.5 cursor-pointer ml-0.5"
-                  title="Supprimer ce filtre"
+                  onClick={() => setSelectedAllergens([])}
+                  className="hover:bg-rose-700 rounded-full p-0.5 cursor-pointer ml-0.5"
+                  title="Effacer le filtre allergènes"
                 >
                   <X className="w-3 h-3 text-white" />
                 </button>
               </span>
             )}
 
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedRadiusKm(0);
-                setIsOpenNowOnly(false);
-                setMinRatingFilter(0);
-                setSelectedCuisineFilter('all');
-                setSelectedAmenities([]);
-                setSelectedAllergens([]);
-              }}
-              className="bg-white/95 hover:bg-white text-stone-700 text-[10px] font-bold px-2.5 py-1 rounded-full shadow-md border border-stone-200 flex items-center gap-1 cursor-pointer transition active:scale-95"
-            >
-              <RotateCcw className="w-2.5 h-2.5 text-stone-500" />
-              <span>Réinitialiser tout</span>
-            </button>
+            {/* Reset All pill when at least 1 filter is active */}
+            {totalActiveFiltersCount > 0 && (
+              <button
+                type="button"
+                onClick={resetAllFilters}
+                className="bg-white/95 hover:bg-white text-rose-700 text-[10px] font-extrabold px-2.5 py-1 rounded-full shadow-md border border-rose-200 flex items-center gap-1 shrink-0 cursor-pointer active:scale-95 transition"
+                title="Effacer tous les filtres d'un coup"
+              >
+                <RotateCcw className="w-2.5 h-2.5 text-rose-600" />
+                <span>Effacer tout</span>
+              </button>
+            )}
           </div>
-        )}
+        </div>
 
-        {/* FLOATING FILTER PANEL MODAL */}
+        {/* FULL SLIDE-OVER FILTER DRAWER (ANCHORED & NEVER CLIPPED) */}
         {isFilterPanelOpen && (
-          <div className="absolute top-14 left-3 right-3 sm:right-auto sm:w-[440px] z-20 pointer-events-auto bg-white/98 backdrop-blur-md rounded-3xl border border-stone-200 shadow-2xl p-4.5 animate-in fade-in slide-in-from-top-2 duration-150 max-h-[82vh] overflow-y-auto">
-            {/* Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-stone-100">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold">
-                  <Filter className="w-4 h-4 text-[#99281a]" />
+          <>
+            {/* Backdrop over map canvas */}
+            <div
+              className="absolute inset-0 bg-stone-950/40 backdrop-blur-xs z-30 transition-opacity"
+              onClick={() => setIsFilterPanelOpen(false)}
+            />
+
+            {/* Slide-over Drawer Panel */}
+            <div className="absolute left-0 top-0 bottom-0 w-full sm:w-[380px] md:w-[410px] z-40 bg-white/98 backdrop-blur-md shadow-2xl border-r border-stone-200/90 flex flex-col animate-in slide-in-from-left duration-200">
+              {/* STICKY DRAWER HEADER */}
+              <div className="p-4 border-b border-stone-200/80 bg-stone-50/90 backdrop-blur-md flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-2xl bg-amber-400 text-stone-950 flex items-center justify-center font-bold shadow-xs">
+                    <Filter className="w-4.5 h-4.5 text-stone-950" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-black text-stone-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <span>Filtres Provence & Carte</span>
+                      {totalActiveFiltersCount > 0 && (
+                        <span className="px-1.5 py-0.5 rounded-full bg-amber-400 text-stone-950 text-[10px] font-black">
+                          {totalActiveFiltersCount} actif{totalActiveFiltersCount > 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </h3>
+                    <p className="text-[11px] text-stone-500 font-medium">
+                      <strong className="text-stone-800 font-bold">{filteredPartnerRestaurants.length}</strong> restaurant{filteredPartnerRestaurants.length > 1 ? 's' : ''} correspondant{filteredPartnerRestaurants.length > 1 ? 's' : ''}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="text-xs font-black text-stone-900 uppercase tracking-wider">
-                    Filtres & Ambiance Provence
-                  </h4>
-                  <p className="text-[10px] text-stone-500">
-                    {filteredPartnerRestaurants.length} partenaire{filteredPartnerRestaurants.length > 1 ? 's' : ''} disponible{filteredPartnerRestaurants.length > 1 ? 's' : ''}
+
+                <button
+                  type="button"
+                  onClick={() => setIsFilterPanelOpen(false)}
+                  className="w-8 h-8 rounded-full bg-stone-200/80 hover:bg-stone-300 text-stone-700 flex items-center justify-center cursor-pointer transition active:scale-95"
+                  title="Fermer le panneau des filtres"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* SCROLLABLE FILTER BODY (100% VISIBLE & EASY TO USE) */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4 divide-y divide-stone-100 scrollbar-thin">
+                {/* SECTION 1: RAYON DYNAMIQUE DE DISTANCE */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-black text-stone-900 flex items-center gap-1.5">
+                      <Compass className="w-4 h-4 text-amber-600" />
+                      <span>Rayon dynamique de distance</span>
+                    </label>
+                    {selectedRadiusKm > 0 && (
+                      <span className="text-[10px] font-black text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                        {selectedRadiusKm} km
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-stone-500 leading-tight">
+                    Trace un cercle autour de votre position (Aubagne) et filtre instantanément les adresses accessibles.
                   </p>
+                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
+                    {RADIUS_OPTIONS.map((opt) => {
+                      const isSelected = selectedRadiusKm === opt.value;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setSelectedRadiusKm(opt.value)}
+                          className={`py-2 px-1.5 rounded-xl text-center text-xs font-bold transition cursor-pointer border ${
+                            isSelected
+                              ? 'bg-amber-400 text-stone-950 border-amber-400 shadow-xs ring-2 ring-amber-400/30'
+                              : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border-stone-200'
+                          }`}
+                          title={opt.badge}
+                        >
+                          <div>{opt.label}</div>
+                          <div className="text-[9px] opacity-75 font-normal truncate mt-0.5">{opt.badge.split('~')[1] || opt.badge}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* SECTION 2: COMMODITÉS & ÉQUIPEMENTS PROVENCE */}
+                <div className="pt-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-black text-stone-900 flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-emerald-600" />
+                      <span>Ambiance & Équipements Provence</span>
+                    </label>
+                    {selectedAmenities.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedAmenities([])}
+                        className="text-[10px] font-bold text-stone-500 hover:text-stone-800 underline cursor-pointer"
+                      >
+                        Effacer ({selectedAmenities.length})
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-stone-500 leading-tight">
+                    Critères essentiels pour profiter des beaux jours et de la chaleur d'Aubagne.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    {AMENITIES_MASTER_LIST.map((amenity) => {
+                      const isSelected = selectedAmenities.includes(amenity.id);
+                      return (
+                        <button
+                          key={amenity.id}
+                          type="button"
+                          onClick={() => toggleAmenity(amenity.id)}
+                          className={`px-3 py-2 rounded-xl text-left text-xs font-semibold flex items-center justify-between transition cursor-pointer border ${
+                            isSelected
+                              ? 'bg-stone-900 text-white border-stone-900 shadow-xs font-bold ring-2 ring-amber-400/40'
+                              : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border-stone-200'
+                          }`}
+                        >
+                          <span className="flex items-center gap-2 truncate">
+                            <span className="text-base">{amenity.emoji}</span>
+                            <span className="truncate">{amenity.label}</span>
+                          </span>
+                          {isSelected && <Check className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* SECTION 3: SÉCURITÉ & ALLERGÈNES À EXCLURE */}
+                <div className="pt-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-black text-stone-900 flex items-center gap-1.5">
+                      <ShieldAlert className="w-4 h-4 text-rose-500" />
+                      <span>Sécurité & Allergènes à exclure</span>
+                    </label>
+                    {selectedAllergens.length > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedAllergens([])}
+                        className="text-[10px] text-rose-600 hover:text-rose-800 font-bold underline cursor-pointer"
+                      >
+                        Effacer ({selectedAllergens.length})
+                      </button>
+                    ) : onOpenDietaryProfile ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsFilterPanelOpen(false);
+                          onOpenDietaryProfile();
+                        }}
+                        className="text-[10px] text-amber-700 hover:text-amber-900 font-bold flex items-center gap-0.5 cursor-pointer underline"
+                      >
+                        <span>Mon profil</span>
+                        <ChevronRight className="w-3 h-3" />
+                      </button>
+                    ) : null}
+                  </div>
+                  <p className="text-[10px] text-stone-500 leading-tight">
+                    Masque automatiquement les restaurants n'ayant pas de plat garanti sans ces allergènes.
+                  </p>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-40 overflow-y-auto pr-1 scrollbar-thin">
+                    {ALLERGENS_MASTER_LIST.map((alg) => {
+                      const isSelected = selectedAllergens.includes(alg.id);
+                      return (
+                        <button
+                          key={alg.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedAllergens((prev) =>
+                              prev.includes(alg.id)
+                                ? prev.filter((id) => id !== alg.id)
+                                : [...prev, alg.id]
+                            );
+                          }}
+                          className={`px-2 py-1.5 rounded-xl text-left text-[11px] font-semibold flex items-center justify-between transition cursor-pointer border ${
+                            isSelected
+                              ? 'bg-rose-600 text-white border-rose-600 shadow-2xs font-bold'
+                              : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border-stone-200'
+                          }`}
+                          title={alg.name}
+                        >
+                          <span className="flex items-center gap-1.5 truncate">
+                            <span>{alg.icon}</span>
+                            <span className="truncate">{alg.name.split('/')[0].trim()}</span>
+                          </span>
+                          {isSelected && <Check className="w-3 h-3 text-white shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {onOpenDietaryProfile && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsFilterPanelOpen(false);
+                        onOpenDietaryProfile();
+                      }}
+                      className="w-full mt-1 py-1.5 px-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 text-[11px] font-bold flex items-center justify-between cursor-pointer transition"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <span>🛡️</span>
+                        <span>Enregistrer mes allergies dans « Mon Profil »</span>
+                      </span>
+                      <ArrowRight className="w-3 h-3 text-amber-800" />
+                    </button>
+                  )}
+                </div>
+
+                {/* SECTION 4: TYPE DE CUISINE & TERROIR */}
+                <div className="pt-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-black text-stone-900 flex items-center gap-1.5">
+                      <Utensils className="w-4 h-4 text-[#99281a]" />
+                      <span>Cuisine & Terroir</span>
+                    </label>
+                    {selectedCuisineFilter !== 'all' && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCuisineFilter('all')}
+                        className="text-[10px] text-stone-500 hover:text-stone-800 underline cursor-pointer"
+                      >
+                        Toutes
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    {CUISINE_FILTER_OPTIONS.map((opt) => {
+                      const isSelected = selectedCuisineFilter === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => setSelectedCuisineFilter(opt.id)}
+                          className={`px-3 py-2 rounded-xl text-left text-xs font-semibold flex items-center justify-between transition cursor-pointer border ${
+                            isSelected
+                              ? 'bg-[#99281a] text-white border-[#99281a] shadow-xs font-bold'
+                              : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border-stone-200'
+                          }`}
+                        >
+                          <span className="flex items-center gap-1.5 truncate">
+                            <span>{opt.emoji}</span>
+                            <span className="truncate">{opt.label}</span>
+                          </span>
+                          {isSelected && <Check className="w-3.5 h-3.5 text-amber-300 shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* SECTION 5: NOTE MINIMALE */}
+                <div className="pt-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-black text-stone-900 flex items-center gap-1.5">
+                      <Star className="w-4 h-4 fill-amber-500 text-amber-500" />
+                      <span>Note minimale</span>
+                    </label>
+                    {minRatingFilter > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setMinRatingFilter(0)}
+                        className="text-[10px] text-stone-500 hover:text-stone-800 underline cursor-pointer"
+                      >
+                        Toutes
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {RATING_FILTER_OPTIONS.map((opt) => {
+                      const isSelected = minRatingFilter === opt.value;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setMinRatingFilter(opt.value)}
+                          className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-between transition cursor-pointer border ${
+                            isSelected
+                              ? 'bg-amber-400 text-stone-950 border-amber-400 font-bold shadow-xs'
+                              : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border-stone-200'
+                          }`}
+                        >
+                          <span>{opt.label}</span>
+                          {isSelected && <Check className="w-3.5 h-3.5 text-stone-950" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* SECTION 6: HORAIRES EN DIRECT */}
+                <div className="pt-4 space-y-2">
+                  <div className="flex items-center justify-between p-2.5 rounded-2xl bg-emerald-50/70 border border-emerald-200">
+                    <div className="flex items-center gap-2">
+                      <span className="relative flex h-3 w-3">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                      </span>
+                      <div>
+                        <div className="text-xs font-bold text-emerald-950">Ouvert actuellement</div>
+                        <div className="text-[10px] text-emerald-800">Masquer les établissements fermés</div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsOpenNowOnly((prev) => !prev)}
+                      className={`w-11 h-6 flex items-center rounded-full p-1 cursor-pointer transition duration-300 ${
+                        isOpenNowOnly ? 'bg-emerald-600 justify-end' : 'bg-stone-300 justify-start'
+                      }`}
+                    >
+                      <div className="bg-white w-4 h-4 rounded-full shadow-md transform transition" />
+                    </button>
+                  </div>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsFilterPanelOpen(false)}
-                className="w-7 h-7 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-600 flex items-center justify-center cursor-pointer transition"
-                title="Fermer le panneau"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
 
-            {/* SECTION 1: RAYON DYNAMIQUE DE DISTANCE */}
-            <div className="py-3 border-b border-stone-100">
-              <label className="text-[11px] font-bold text-stone-800 flex items-center gap-1.5 mb-1.5">
-                <Compass className="w-3.5 h-3.5 text-amber-600" />
-                <span>Rayon dynamique de distance</span>
-              </label>
-              <p className="text-[10px] text-stone-500 mb-2 leading-tight">
-                Trace un cercle autour de votre position et filtre les restaurants accessibles à pied ou en voiture.
-              </p>
-              <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
-                {RADIUS_OPTIONS.map((opt) => {
-                  const isSelected = selectedRadiusKm === opt.value;
-                  return (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setSelectedRadiusKm(opt.value)}
-                      className={`py-1.5 px-2 rounded-xl text-center text-xs font-bold transition cursor-pointer border ${
-                        isSelected
-                          ? 'bg-amber-400 text-stone-950 border-amber-400 shadow-xs'
-                          : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border-stone-200'
-                      }`}
-                      title={opt.badge}
-                    >
-                      <span>{opt.label}</span>
-                    </button>
-                  );
-                })}
+              {/* STICKY DRAWER FOOTER (ALWAYS VISIBLE & NEVER HIDDEN) */}
+              <div className="p-3.5 bg-stone-50/95 backdrop-blur-md border-t border-stone-200 flex items-center justify-between gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={resetAllFilters}
+                  disabled={totalActiveFiltersCount === 0}
+                  className="px-3 py-2 rounded-xl text-xs font-bold text-stone-600 hover:text-stone-900 disabled:opacity-40 disabled:pointer-events-none flex items-center gap-1.5 cursor-pointer transition hover:bg-stone-200/50"
+                  title="Réinitialiser tous les filtres"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-stone-500" />
+                  <span>Réinitialiser</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsFilterPanelOpen(false);
+                    if (onShowToast) {
+                      onShowToast(`Carte filtrée : ${filteredPartnerRestaurants.length} restaurant(s) affiché(s)`);
+                    }
+                  }}
+                  className="px-4 py-2.5 bg-[#99281a] hover:bg-[#781524] text-white text-xs font-bold rounded-xl shadow-md cursor-pointer transition active:scale-95 flex items-center gap-2"
+                >
+                  <span>Afficher ({filteredPartnerRestaurants.length})</span>
+                  <ArrowRight className="w-3.5 h-3.5 text-amber-300" />
+                </button>
               </div>
             </div>
-
-            {/* SECTION 2: COMMODITÉS & ÉQUIPEMENTS PROVENCE */}
-            <div className="py-3 border-b border-stone-100">
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-[11px] font-bold text-stone-800 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Ambiance & Équipements très demandés ({selectedAmenities.length})</span>
-                </label>
-                {selectedAmenities.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedAmenities([])}
-                    className="text-[10px] text-stone-500 hover:underline cursor-pointer"
-                  >
-                    Effacer
-                  </button>
-                )}
-              </div>
-              <p className="text-[10px] text-stone-500 mb-2 leading-tight">
-                Idéal pour les repas au soleil ou le confort des fortes chaleurs d'Aubagne.
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                {AMENITIES_MASTER_LIST.map((amenity) => {
-                  const isSelected = selectedAmenities.includes(amenity.id);
-                  return (
-                    <button
-                      key={amenity.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedAmenities((prev) =>
-                          prev.includes(amenity.id)
-                            ? prev.filter((id) => id !== amenity.id)
-                            : [...prev, amenity.id]
-                        );
-                      }}
-                      className={`px-2.5 py-1.5 rounded-xl text-left text-xs font-semibold flex items-center justify-between transition cursor-pointer border ${
-                        isSelected
-                          ? 'bg-stone-900 text-white border-stone-900 shadow-xs font-bold'
-                          : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border-stone-200'
-                      }`}
-                    >
-                      <span className="flex items-center gap-1.5 truncate">
-                        <span>{amenity.emoji}</span>
-                        <span className="truncate">{amenity.label}</span>
-                      </span>
-                      {isSelected && <Check className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* SECTION 3: ALLERGÈNES À EXCLURE */}
-            <div className="py-3 border-b border-stone-100">
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-[11px] font-bold text-stone-800 flex items-center gap-1.5">
-                  <ShieldAlert className="w-3.5 h-3.5 text-rose-500" />
-                  <span>Allergènes à exclure ({selectedAllergens.length})</span>
-                </label>
-                {selectedAllergens.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedAllergens([])}
-                    className="text-[10px] text-rose-600 hover:text-rose-800 font-semibold cursor-pointer underline"
-                  >
-                    Effacer
-                  </button>
-                )}
-              </div>
-              <p className="text-[10px] text-stone-500 mb-2 leading-tight">
-                Seuls les restaurants proposant des plats certifiés sans ces allergènes seront affichés.
-              </p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-36 overflow-y-auto pr-1 scrollbar-thin">
-                {ALLERGENS_MASTER_LIST.map((alg) => {
-                  const isSelected = selectedAllergens.includes(alg.id);
-                  return (
-                    <button
-                      key={alg.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedAllergens((prev) =>
-                          prev.includes(alg.id)
-                            ? prev.filter((id) => id !== alg.id)
-                            : [...prev, alg.id]
-                        );
-                      }}
-                      className={`px-2 py-1.5 rounded-xl text-left text-[11px] font-semibold flex items-center justify-between transition cursor-pointer border ${
-                        isSelected
-                          ? 'bg-rose-600 text-white border-rose-600 shadow-2xs font-bold'
-                          : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border-stone-200'
-                      }`}
-                      title={alg.name}
-                    >
-                      <span className="flex items-center gap-1.5 truncate">
-                        <span>{alg.icon}</span>
-                        <span className="truncate">{alg.name.split('/')[0].trim()}</span>
-                      </span>
-                      {isSelected && <Check className="w-3 h-3 text-white shrink-0" />}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* SECTION 4: TYPE DE CUISINE */}
-            <div className="py-3 border-b border-stone-100">
-              <label className="text-[11px] font-bold text-stone-700 flex items-center gap-1.5 mb-2">
-                <Utensils className="w-3.5 h-3.5 text-[#99281a]" />
-                <span>Type de cuisine</span>
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                {CUISINE_FILTER_OPTIONS.map((opt) => {
-                  const isSelected = selectedCuisineFilter === opt.id;
-                  return (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => setSelectedCuisineFilter(opt.id)}
-                      className={`px-2.5 py-1.5 rounded-xl text-left text-xs font-semibold flex items-center justify-between transition cursor-pointer border ${
-                        isSelected
-                          ? 'bg-[#99281a] text-white border-[#99281a] shadow-xs'
-                          : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border-stone-200'
-                      }`}
-                    >
-                      <span className="flex items-center gap-1.5 truncate">
-                        <span>{opt.emoji}</span>
-                        <span className="truncate">{opt.label}</span>
-                      </span>
-                      {isSelected && <Check className="w-3.5 h-3.5 text-amber-300 shrink-0" />}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* SECTION 5: NOTE MINIMALE */}
-            <div className="py-3 border-b border-stone-100">
-              <label className="text-[11px] font-bold text-stone-700 flex items-center gap-1.5 mb-2">
-                <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
-                <span>Note minimale</span>
-              </label>
-              <div className="grid grid-cols-2 gap-1.5">
-                {RATING_FILTER_OPTIONS.map((opt) => {
-                  const isSelected = minRatingFilter === opt.value;
-                  return (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setMinRatingFilter(opt.value)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center justify-between transition cursor-pointer border ${
-                        isSelected
-                          ? 'bg-amber-400 text-stone-950 border-amber-400 font-bold shadow-xs'
-                          : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border-stone-200'
-                      }`}
-                    >
-                      <span>{opt.label}</span>
-                      {isSelected && <Check className="w-3.5 h-3.5 text-stone-950" />}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Footer Reset & Apply */}
-            <div className="pt-3 flex items-center justify-between gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedRadiusKm(0);
-                  setIsOpenNowOnly(false);
-                  setMinRatingFilter(0);
-                  setSelectedCuisineFilter('all');
-                  setSelectedAmenities([]);
-                  setSelectedAllergens([]);
-                }}
-                disabled={totalActiveFiltersCount === 0}
-                className="px-3 py-2 rounded-xl text-xs font-bold text-stone-600 hover:text-stone-900 disabled:opacity-40 disabled:pointer-events-none flex items-center gap-1 cursor-pointer transition"
-              >
-                <RotateCcw className="w-3 h-3" />
-                <span>Réinitialiser tout</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setIsFilterPanelOpen(false)}
-                className="px-4 py-2 bg-[#99281a] hover:bg-[#781524] text-white text-xs font-bold rounded-xl shadow-md cursor-pointer transition active:scale-95"
-              >
-                Afficher ({filteredPartnerRestaurants.length})
-              </button>
-            </div>
-          </div>
+          </>
         )}
 
         {/* Floating Quick Locate GPS Button (Above Leaflet Zoom) */}
