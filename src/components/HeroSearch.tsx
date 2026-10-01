@@ -97,9 +97,14 @@ export const HeroSearch: React.FC<HeroSearchProps> = ({
         {/* Top Header Badge & Titles */}
         <div className="relative z-10 max-w-3xl space-y-2.5 sm:space-y-3">
           {/* Badge */}
-          <div className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-[11px] sm:text-xs text-amber-300 font-medium">
+          <div className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-[10.5px] sm:text-xs text-amber-300 font-medium max-w-full shadow-xs">
             <Sparkles className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-            <span className="truncate">{t('heroBadge')}</span>
+            <span className="sm:hidden font-semibold">
+              {t('heroBadgeMobile') || 'Restaurants certifiés • Nutrition vérifiée'}
+            </span>
+            <span className="hidden sm:inline">
+              {t('heroBadge')}
+            </span>
           </div>
 
           {/* Heading */}
