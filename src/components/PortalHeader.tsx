@@ -229,6 +229,27 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
             <span className="truncate max-w-[90px]">{userCoords.label || 'Aubagne'}</span>
           </button>
 
+          {/* Quick Mobile Carte Interactive button */}
+          {onOpenMap && (
+            <button
+              type="button"
+              onClick={onOpenMap}
+              className={`md:hidden px-2.5 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1.5 border cursor-pointer active:scale-95 ${
+                isMapActive
+                  ? 'bg-amber-400 text-stone-950 border-amber-300 ring-2 ring-amber-400/40 shadow-xs'
+                  : 'bg-white/10 hover:bg-white/20 text-amber-300 border-white/15'
+              }`}
+              title="Afficher la Carte Interactive"
+            >
+              <Map className="w-3.5 h-3.5" />
+              <span>Carte</span>
+              <span className="flex h-1.5 w-1.5 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-400"></span>
+              </span>
+            </button>
+          )}
+
           {/* CTA: Inscrire mon restaurant (Sole professional action in navbar) */}
           {onOpenRegistrationModal && (
             <button

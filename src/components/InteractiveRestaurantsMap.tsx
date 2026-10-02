@@ -647,6 +647,11 @@ export const InteractiveRestaurantsMap: React.FC<InteractiveRestaurantsMapProps>
     if (!mapContainerRef.current) return;
     if (mapInstanceRef.current) return;
 
+    // Prevent Leaflet error 'Map container is already initialized'
+    if ((mapContainerRef.current as any)._leaflet_id) {
+      delete (mapContainerRef.current as any)._leaflet_id;
+    }
+
     const defaultLat = userCoords ? userCoords.lat : 43.2929;
     const defaultLng = userCoords ? userCoords.lng : 5.5714;
 
@@ -654,7 +659,7 @@ export const InteractiveRestaurantsMap: React.FC<InteractiveRestaurantsMapProps>
       center: [defaultLat, defaultLng],
       zoom: 14,
       zoomControl: false,
-    });
+    } as any);
 
     const standardConf = MAP_STYLES.standard;
     const initialTile = L.tileLayer(standardConf.url, {
@@ -713,12 +718,15 @@ export const InteractiveRestaurantsMap: React.FC<InteractiveRestaurantsMapProps>
     clusterGroupRef.current = clusterGroup;
 
     map.invalidateSize();
+    const t0 = setTimeout(() => {
+      if (mapInstanceRef.current) mapInstanceRef.current.invalidateSize();
+    }, 50);
     const t1 = setTimeout(() => {
       if (mapInstanceRef.current) mapInstanceRef.current.invalidateSize();
-    }, 150);
+    }, 200);
     const t2 = setTimeout(() => {
       if (mapInstanceRef.current) mapInstanceRef.current.invalidateSize();
-    }, 450);
+    }, 600);
 
     const handleResize = () => {
       if (mapInstanceRef.current) {
@@ -745,6 +753,7 @@ export const InteractiveRestaurantsMap: React.FC<InteractiveRestaurantsMapProps>
     map.on('moveend', handleMapMoveEnd);
 
     return () => {
+      clearTimeout(t0);
       clearTimeout(t1);
       clearTimeout(t2);
       window.removeEventListener('resize', handleResize);
@@ -753,10 +762,19 @@ export const InteractiveRestaurantsMap: React.FC<InteractiveRestaurantsMapProps>
       if (abortControllerRef.current) abortControllerRef.current.abort();
       if (clusterGroupRef.current) {
         clusterGroupRef.current.clearLayers();
-        map.removeLayer(clusterGroupRef.current);
+        try {
+          map.removeLayer(clusterGroupRef.current);
+        } catch (_) {}
         clusterGroupRef.current = null;
       }
-      map.remove();
+      try {
+        map.remove();
+      } catch (err) {
+        console.warn('Map cleanup error:', err);
+      }
+      if (mapContainerRef.current) {
+        delete (mapContainerRef.current as any)._leaflet_id;
+      }
       mapInstanceRef.current = null;
     };
   }, []);
@@ -1187,11 +1205,11 @@ export const InteractiveRestaurantsMap: React.FC<InteractiveRestaurantsMapProps>
   };
 
   return (
-    <div className="relative w-full rounded-3xl overflow-hidden border border-stone-200/90 shadow-xl bg-stone-100 flex flex-col md:flex-row min-h-[640px] md:h-[680px]">
+    <div className="relative w-full rounded-3xl overflow-hidden border border-stone-200/90 shadow-xl bg-stone-100 flex flex-col md:flex-row h-auto md:h-[680px] lg:h-[700px]">
       {/* MAP CANVAS CONTAINER */}
-      <div className="relative w-full md:w-7/12 lg:w-2/3 h-full flex flex-col">
+      <div className="relative w-full h-[460px] sm:h-[500px] md:h-full md:w-7/12 lg:w-2/3 shrink-0 flex flex-col">
         {/* Leaflet map container */}
-        <div ref={mapContainerRef} className="w-full h-full z-0" />
+        <div ref={mapContainerRef} className="w-full h-full min-h-[460px] sm:min-h-[500px] md:min-h-full z-0" />
 
         {/* TOP CONTROLS & FILTER OVERLAY ON MAP */}
         <div className="absolute top-3 left-3 right-3 z-10 pointer-events-none flex flex-col gap-2">
@@ -1810,7 +1828,7 @@ export const InteractiveRestaurantsMap: React.FC<InteractiveRestaurantsMapProps>
       </div>
 
       {/* SIDE PREVIEW DRAWER (DESKTOP) & SLIDE CARD (MOBILE) */}
-      <div className="w-full md:w-5/12 lg:w-1/3 bg-white border-t md:border-t-0 md:border-l border-stone-200/90 flex flex-col justify-between overflow-y-auto p-4.5 z-10 shadow-lg">
+      <div className="w-full md:w-5/12 lg:w-1/3 bg-white border-t md:border-t-0 md:border-l border-stone-200/90 flex flex-col justify-between overflow-y-auto p-4 sm:p-4.5 z-10 shadow-lg min-h-[300px] md:min-h-0">
         {/* CASE 1: SELECTED GUSTO PARTNER RESTAURANT */}
         {activePartnerRestaurant && !selectedOsmRestaurant ? (
           <div className="space-y-3.5">

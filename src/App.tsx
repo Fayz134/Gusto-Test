@@ -61,7 +61,7 @@ function enrichWithReviews(list: Restaurant[]): Restaurant[] {
 export default function App() {
   // Navigation & Data State
   const [currentView, setCurrentView] = useState<'portal' | 'restaurant' | 'creator-dashboard'>('portal');
-  const [portalDisplayMode, setPortalDisplayMode] = useState<'grid' | 'map'>('grid');
+  const [portalDisplayMode, setPortalDisplayMode] = useState<'grid' | 'map'>('map');
   const [restaurants, setRestaurants] = useState<Restaurant[]>(() => {
     let baseList = INITIAL_RESTAURANTS_DATA;
     try {
@@ -624,11 +624,11 @@ export default function App() {
       setSelectedMapRestaurantId(restoId);
     }
     setTimeout(() => {
-      const el = document.getElementById('interactive-map-section');
+      const el = document.getElementById('interactive-map-container') || document.getElementById('interactive-map-section');
       if (el) {
-        el.scrollIntoView({ behavior: 'smooth' });
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
-    }, 100);
+    }, 120);
   };
 
   // Dish details
@@ -1109,21 +1109,23 @@ export default function App() {
 
               {/* View Rendering: Grid vs Interactive Map */}
               {portalDisplayMode === 'map' ? (
-                <InteractiveRestaurantsMap
-                  restaurants={filteredRestaurants}
-                  currentLang={currentLang}
-                  userCoords={userCoords}
-                  onRequestGeolocation={handleRequestGeolocation}
-                  onSelectRestaurant={handleOpenRestaurant}
-                  selectedRestaurantId={selectedMapRestaurantId}
-                  initialSelectedAllergens={selectedAllergensFilter}
-                  onOpenDietaryProfile={() => setIsDietaryProfileModalOpen(true)}
-                  onShowToast={showToast}
-                  onSuggestRegistration={(prefill) => {
-                    setIsRegistrationModalOpen(true);
-                    showToast(`Formulaire d'inscription ouvert pour ${prefill.name}`);
-                  }}
-                />
+                <div id="interactive-map-container" className="w-full scroll-mt-24">
+                  <InteractiveRestaurantsMap
+                    restaurants={filteredRestaurants}
+                    currentLang={currentLang}
+                    userCoords={userCoords}
+                    onRequestGeolocation={handleRequestGeolocation}
+                    onSelectRestaurant={handleOpenRestaurant}
+                    selectedRestaurantId={selectedMapRestaurantId}
+                    initialSelectedAllergens={selectedAllergensFilter}
+                    onOpenDietaryProfile={() => setIsDietaryProfileModalOpen(true)}
+                    onShowToast={showToast}
+                    onSuggestRegistration={(prefill) => {
+                      setIsRegistrationModalOpen(true);
+                      showToast(`Formulaire d'inscription ouvert pour ${prefill.name}`);
+                    }}
+                  />
+                </div>
               ) : (
                 /* Restaurants Grid */
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
