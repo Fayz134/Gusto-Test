@@ -43,6 +43,7 @@ import {
 } from 'lucide-react';
 import { trackPhoneCall } from '../utils/analytics';
 import { calcDistanceKm, calcTravelTimes } from '../utils/geo';
+import { getAutoCuisineName } from '../utils/translator';
 import { ShareRestaurantModal } from './ShareRestaurantModal';
 import { openWhatsAppReservation } from '../utils/sharing';
 
@@ -222,6 +223,31 @@ export const InteractiveRestaurantsMap: React.FC<InteractiveRestaurantsMapProps>
       });
     }
   }, [initialSelectedAllergens]);
+
+  // Synchronize active pin when selectedRestaurantId prop changes
+  useEffect(() => {
+    if (selectedRestaurantId) {
+      setActivePinId(selectedRestaurantId);
+      setSelectedOsmRestaurant(null);
+      const targetResto = restaurants.find((r) => r.id === selectedRestaurantId);
+      if (targetResto && mapInstanceRef.current) {
+        mapInstanceRef.current.panTo([targetResto.coords.lat, targetResto.coords.lng], {
+          animate: true,
+          duration: 0.5,
+        });
+        const targetMarker = partnerMarkersRef.current[selectedRestaurantId];
+        if (targetMarker) {
+          if (clusterGroupRef.current) {
+            clusterGroupRef.current.zoomToShowLayer(targetMarker, () => {
+              targetMarker.openPopup();
+            });
+          } else {
+            targetMarker.openPopup();
+          }
+        }
+      }
+    }
+  }, [selectedRestaurantId, restaurants]);
 
   // Close filter drawer on Escape key and invalidate map size
   useEffect(() => {
@@ -1844,7 +1870,7 @@ export const InteractiveRestaurantsMap: React.FC<InteractiveRestaurantsMapProps>
               {/* Status & Price tags on image */}
               <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-stone-900/80 backdrop-blur-md text-amber-300 border border-amber-300/30">
-                  {activePartnerRestaurant.cuisine}
+                  {getAutoCuisineName(activePartnerRestaurant.cuisine, currentLang)}
                 </span>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-white/90 text-stone-900 border border-white/60">
                   {activePartnerRestaurant.priceRange.split(' ')[0]}
@@ -1977,7 +2003,7 @@ export const InteractiveRestaurantsMap: React.FC<InteractiveRestaurantsMapProps>
                 onClick={() => onSelectRestaurant(activePartnerRestaurant.id)}
                 className="w-full py-2.5 bg-[#99281a] hover:bg-[#781524] text-white font-bold text-xs rounded-2xl flex items-center justify-center gap-2 transition shadow-md hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
               >
-                <span>Consulter la carte & le menu complet</span>
+                <span>{t('consultMenu')}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
 

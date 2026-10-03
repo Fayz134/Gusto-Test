@@ -438,3 +438,172 @@ export function getAutoDishDesc(dish: Dish | null | undefined, lang: Language): 
   if (lang === 'fr') return desc;
   return translateDescriptionLocally(desc, lang === 'it' ? 'it' : lang === 'es' ? 'es' : 'en');
 }
+
+const CUISINE_DICTIONARY: Record<string, { it: string; en: string; es: string }> = {
+  'pizzeria artisanale / cuite au feu de bois': {
+    it: 'Pizzeria Artigianale al Forno a Legna',
+    en: 'Artisan Wood-Fired Pizzeria',
+    es: 'Pizzería Artesanal al Horno de Leña',
+  },
+  'pizzeria artisanale / feu de bois': {
+    it: 'Pizzeria Artigianale al Forno a Legna',
+    en: 'Artisan Wood-Fired Pizzeria',
+    es: 'Pizzería Artesanal al Horno de Leña',
+  },
+  'pizzeria napolitaine / feu de bois': {
+    it: 'Pizzeria Napoletana al Forno a Legna',
+    en: 'Neapolitan Wood-Fired Pizzeria',
+    es: 'Pizzería Napolitana al Horno de Leña',
+  },
+  'pizzeria & grillades au feu de bois': {
+    it: 'Pizzeria & Grigliate al Forno a Legna',
+    en: 'Wood-Fired Pizza & Grills',
+    es: 'Pizzería y Parrilladas al Horno de Leña',
+  },
+  'poissons & fruits de mer': {
+    it: 'Pesce Fresco & Frutti di Mare',
+    en: 'Fresh Seafood & Fish',
+    es: 'Pescados y Mariscos Frescos',
+  },
+  'japonaise & ramen': {
+    it: 'Giapponese & Ramen Bar',
+    en: 'Japanese & Ramen Bar',
+    es: 'Japonesa y Ramen Bar',
+  },
+  'japonaise & ramen bar': {
+    it: 'Giapponese & Ramen Bar',
+    en: 'Japanese & Ramen Bar',
+    es: 'Japonesa y Ramen Bar',
+  },
+  'japonaise & sushis / ramen': {
+    it: 'Giapponese, Sushi & Ramen',
+    en: 'Japanese, Sushi & Ramen',
+    es: 'Japonesa, Sushi y Ramen',
+  },
+  'japonaise & healthy bowls': {
+    it: 'Giapponese & Healthy Bowls',
+    en: 'Japanese & Healthy Bowls',
+    es: 'Japonesa y Bowls Saludables',
+  },
+  'burgers du terroir': {
+    it: 'Burger Gourmet del Territorio',
+    en: 'Gourmet Artisan Burgers',
+    es: 'Hamburguesas Gourmet Artesanales',
+  },
+  'crêperie & terroir': {
+    it: 'Crêperie Tradizionale & Terroir',
+    en: 'Traditional Crêperie & Local Flavors',
+    es: 'Crepería Tradicional y Terruño',
+  },
+  'grillades & brasero halal': {
+    it: 'Grigliate & Brace Halal',
+    en: 'Halal Wood-Fired BBQ & Grills',
+    es: 'Carnes a la Brasa Halal',
+  },
+  'grillades halal & braises': {
+    it: 'Grigliate Halal & Braci',
+    en: 'Halal Grills & Charcoal BBQ',
+    es: 'Parrilladas Halal y Brasas',
+  },
+  'cuisine provençale & terroir': {
+    it: 'Cucina Provenzale & Tradizione',
+    en: 'Provençal Cuisine & Local Tradition',
+    es: 'Cocina Provenzal y Terruño',
+  },
+  'provençale & terroir': {
+    it: 'Cucina Provenzale & Terroir',
+    en: 'Provençal & Local Heritage',
+    es: 'Provenzal y Terruño',
+  },
+  'bistrot provençal': {
+    it: 'Bistrot Provenzale Tradizionale',
+    en: 'Traditional Provençal Bistro',
+    es: 'Bistró Provenzal Tradicional',
+  },
+  'bistronomique provençale': {
+    it: 'Bistronomia Provenzale',
+    en: 'Provençal French Bistronomy',
+    es: 'Bistronomía Provenzal',
+  },
+  'cuisine française & bistronomique': {
+    it: 'Cucina Francese & Bistronomica',
+    en: 'French Bistronomy & Fine Dining',
+    es: 'Cocina Francesa y Bistronómica',
+  },
+  'bistrot de terroir & bar à vins': {
+    it: 'Bistrot di Territorio & Wine Bar',
+    en: 'Local Terroir Bistro & Wine Bar',
+    es: 'Bistró de Terruño y Bar de Vinos',
+  },
+  'street food thaïlandaise & wok': {
+    it: 'Street Food Thailandese & Wok',
+    en: 'Thai Street Food & Wok',
+    es: 'Street Food Tailandés y Wok',
+  },
+  'italienne contemporaine': {
+    it: 'Cucina Italiana Contemporanea',
+    en: 'Contemporary Italian Dining',
+    es: 'Cocina Italiana Contemporánea',
+  },
+  'trattoria & épicerie italienne': {
+    it: 'Trattoria & Bottega Gastronomica',
+    en: 'Italian Trattoria & Delicatessen',
+    es: 'Trattoria y Tienda Italiana',
+  },
+  'méditerranéenne & traditionnelle': {
+    it: 'Mediterranea & Tradizionale',
+    en: 'Mediterranean & Traditional',
+    es: 'Mediterránea y Tradicional',
+  },
+};
+
+const TAGS_DICTIONARY: Record<string, { it: string; en: string; es: string }> = {
+  'spécialité': { it: 'Specialità', en: 'Specialty', es: 'Especialidad' },
+  'specialite': { it: 'Specialità', en: 'Specialty', es: 'Especialidad' },
+  'spécialité maison': { it: 'Specialità della Casa', en: 'House Specialty', es: 'Especialidad de la Casa' },
+  'spécialité locale': { it: 'Specialità Locale', en: 'Local Specialty', es: 'Especialidad Local' },
+  'four à bois': { it: 'Forno a Legna', en: 'Wood-Fired', es: 'Horno de Leña' },
+  'bestseller': { it: 'Più Venduto', en: 'Bestseller', es: 'Más Vendido' },
+  'coup de cœur': { it: 'Scelta dello Chef', en: "Chef's Pick", es: 'Favorito del Chef' },
+  'coup de coeur': { it: 'Scelta dello Chef', en: "Chef's Pick", es: 'Favorito del Chef' },
+  'plat du moment': { it: 'Piatto del Momento', en: 'Dish of the Moment', es: 'Plato del Momento' },
+  'halal': { it: 'Halal', en: 'Halal', es: 'Halal' },
+  '100% halal': { it: '100% Halal', en: '100% Halal', es: '100% Halal' },
+  'végétarien': { it: 'Vegetariano', en: 'Vegetarian', es: 'Vegetariano' },
+  'végétalien': { it: 'Vegano', en: 'Vegan', es: 'Vegano' },
+  'vegan': { it: 'Vegano', en: 'Vegan', es: 'Vegano' },
+  'high protein': { it: 'Alto Contenuto Proteico', en: 'High Protein', es: 'Alto en Proteínas' },
+  'faible en glucides': { it: 'Bassi Carboidrati', en: 'Low Carb', es: 'Bajo en Carbohidratos' },
+  'faible en lipides': { it: 'Pochi Grassi', en: 'Low Fat', es: 'Bajo en Grasas' },
+  'terroir de provence': { it: 'Tradizione Provenzale', en: 'Provençal Heritage', es: 'Tradición Provenzal' },
+  '100% terroir': { it: '100% Territorio', en: '100% Local Heritage', es: '100% Terruño' },
+  'à partager': { it: 'Da Condividere', en: 'To Share', es: 'Para Compartir' },
+};
+
+/**
+ * Translates restaurant cuisine and specialties authentically
+ */
+export function getAutoCuisineName(cuisine: string | undefined | null, lang: Language): string {
+  if (!cuisine) return '';
+  if (lang === 'fr') return cuisine;
+  const key = cuisine.trim().toLowerCase();
+  if (CUISINE_DICTIONARY[key]) {
+    return CUISINE_DICTIONARY[key][lang === 'it' ? 'it' : lang === 'es' ? 'es' : 'en'] || cuisine;
+  }
+  // Try partial word replacements
+  return translateDescriptionLocally(cuisine, lang === 'it' ? 'it' : lang === 'es' ? 'es' : 'en');
+}
+
+/**
+ * Translates culinary tags (e.g. Four à Bois, Halal, Bestseller)
+ */
+export function getAutoTagLabel(tag: string | undefined | null, lang: Language): string {
+  if (!tag) return '';
+  if (lang === 'fr') return tag;
+  const key = tag.trim().toLowerCase();
+  if (TAGS_DICTIONARY[key]) {
+    return TAGS_DICTIONARY[key][lang === 'it' ? 'it' : lang === 'es' ? 'es' : 'en'] || tag;
+  }
+  return translateDescriptionLocally(tag, lang === 'it' ? 'it' : lang === 'es' ? 'es' : 'en');
+}
+

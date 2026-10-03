@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   UtensilsCrossed,
   ShieldAlert,
@@ -14,7 +14,6 @@ import {
 } from 'lucide-react';
 import { Language } from '../types';
 import { I18N_DICT } from '../data/i18n';
-import { PWAInstallButton } from './PWAInstallButton';
 
 export interface PortalHeaderProps {
   currentLang: Language;
@@ -66,6 +65,29 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const t = (key: string) => I18N_DICT[currentLang]?.[key] || key;
 
+  // Close mobile drawer on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && mobileMenuOpen) {
+        setMobileMenuOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mobileMenuOpen]);
+
+  // Prevent background scroll when mobile drawer is open
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      document.body.classList.add('overflow-hidden');
+    } else {
+      document.body.classList.remove('overflow-hidden');
+    }
+    return () => {
+      document.body.classList.remove('overflow-hidden');
+    };
+  }, [mobileMenuOpen]);
+
   const handlePortalClick = () => {
     setMobileMenuOpen(false);
     if (onNavigatePortal) {
@@ -88,18 +110,18 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
   };
 
   return (
-    <header className="fixed top-0 sm:top-3 inset-x-0 z-50 px-2 sm:px-4 md:px-6 pointer-events-none flex flex-col items-center">
+    <header className="fixed top-0 sm:top-3 inset-x-0 z-50 px-2 sm:px-4 md:px-6 pointer-events-none flex flex-col items-center pt-[env(safe-area-inset-top,0px)]">
       {/* MASTER LUXURY NAVIGATION BAR CONTAINER */}
       <nav
         aria-label="Navigation principale Gusto"
-        className="pointer-events-auto relative w-full max-w-6xl bg-[#0e1116]/92 backdrop-blur-2xl border border-white/10 sm:border-white/15 rounded-2xl sm:rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.55),0_1px_0_rgba(255,255,255,0.08)_inset] px-3 sm:px-4 py-2 flex items-center justify-between gap-2 sm:gap-4 transition-all duration-300 ring-1 ring-black/40"
+        className="pointer-events-auto relative w-full max-w-6xl bg-[#0e1116]/95 backdrop-blur-2xl border border-white/10 sm:border-white/15 rounded-2xl sm:rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.55),0_1px_0_rgba(255,255,255,0.08)_inset] px-2.5 sm:px-4 py-1.5 sm:py-2 flex items-center justify-between gap-1.5 sm:gap-4 transition-all duration-300 ring-1 ring-black/40 min-h-[48px] sm:min-h-[54px]"
       >
         {/* LEFT SECTION: BRANDING & CONTEXTUAL BREADCRUMB */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <button
             type="button"
             onClick={handlePortalClick}
-            className="flex items-center gap-2 cursor-pointer group transition-all text-left"
+            className="flex items-center gap-2 cursor-pointer group transition-all text-left touch-manipulation min-h-[38px]"
             title="Gusto - Accueil & Guide des restaurants"
           >
             {/* Elegant gastronomic jewel logo icon */}
@@ -127,10 +149,10 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
                 type="button"
                 onClick={handlePortalClick}
                 className="hover:text-amber-300 transition flex items-center gap-1 font-semibold text-stone-400 text-[11px]"
-                title="Retour au guide des restaurants"
+                title="Revenir à l'accueil"
               >
                 <ArrowLeft className="w-3 h-3" />
-                <span>Guide</span>
+                <span>Accueil</span>
               </button>
               <span className="text-stone-600">/</span>
               <span className="font-bold text-white truncate max-w-[140px] bg-white/5 px-2 py-0.5 rounded-full border border-white/10 text-[11px]">
@@ -234,42 +256,41 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
             <button
               type="button"
               onClick={onOpenMap}
-              className={`md:hidden px-2.5 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1.5 border cursor-pointer active:scale-95 ${
+              className={`md:hidden px-2 sm:px-2.5 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1.5 border cursor-pointer active:scale-95 shrink-0 touch-manipulation min-h-[36px] ${
                 isMapActive
                   ? 'bg-amber-400 text-stone-950 border-amber-300 ring-2 ring-amber-400/40 shadow-xs'
                   : 'bg-white/10 hover:bg-white/20 text-amber-300 border-white/15'
               }`}
               title="Afficher la Carte Interactive"
             >
-              <Map className="w-3.5 h-3.5" />
-              <span>Carte</span>
-              <span className="flex h-1.5 w-1.5 relative">
+              <Map className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden xs:inline">Carte</span>
+              <span className="flex h-1.5 w-1.5 relative shrink-0">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-400"></span>
               </span>
             </button>
           )}
 
-          {/* CTA: Inscrire mon restaurant (Sole professional action in navbar) */}
+          {/* CTA: Inscrire mon restaurant (Sole professional action in navbar on tablet & desktop) */}
           {onOpenRegistrationModal && (
             <button
               type="button"
               onClick={handleRegistrationClick}
-              className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-full bg-gradient-to-r from-[#99281a] via-[#b92c1d] to-amber-600 hover:from-[#b02e1e] hover:to-amber-500 text-white text-xs font-bold shadow-[0_4px_14px_rgba(153,40,26,0.45)] hover:shadow-[0_6px_18px_rgba(153,40,26,0.6)] border border-amber-400/30 transition-all cursor-pointer transform hover:scale-[1.02] active:scale-[0.98]"
+              className="hidden sm:flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-full bg-gradient-to-r from-[#99281a] via-[#b92c1d] to-amber-600 hover:from-[#b02e1e] hover:to-amber-500 text-white text-xs font-bold shadow-[0_4px_14px_rgba(153,40,26,0.45)] hover:shadow-[0_6px_18px_rgba(153,40,26,0.6)] border border-amber-400/30 transition-all cursor-pointer transform hover:scale-[1.02] active:scale-[0.98] shrink-0 touch-manipulation"
               title="Inscrire un restaurant ou créer une page sur Gusto"
             >
               <Building2 className="w-3.5 h-3.5 text-amber-200 shrink-0" />
-              <span className="hidden sm:inline">Inscrire un restaurant</span>
-              <span className="sm:hidden">Inscrire</span>
+              <span>Inscrire</span>
             </button>
           )}
 
           {/* Modern Language Pill Selector */}
-          <div className="relative">
+          <div className="relative shrink-0">
             <select
               value={currentLang}
               onChange={(e) => onLanguageChange(e.target.value as Language)}
-              className="bg-white/10 hover:bg-white/15 border border-white/20 text-white rounded-full px-2.5 py-1 text-xs font-bold focus:outline-none cursor-pointer transition shadow-xs appearance-none pr-5 text-center"
+              className="bg-white/10 hover:bg-white/15 border border-white/20 text-white rounded-full px-2 sm:px-2.5 py-1 text-xs font-bold focus:outline-none cursor-pointer transition shadow-xs appearance-none pr-4.5 sm:pr-5 text-center min-h-[36px] touch-manipulation"
               aria-label="Sélectionner la langue"
             >
               <option value="fr" className="bg-[#14171a] text-white">FR</option>
@@ -286,22 +307,35 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
           <button
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition cursor-pointer shrink-0 border border-white/10"
+            className={`md:hidden p-2 rounded-full transition cursor-pointer shrink-0 border min-w-[36px] min-h-[36px] flex items-center justify-center touch-manipulation active:scale-95 ${
+              mobileMenuOpen
+                ? 'bg-amber-400 text-stone-950 border-amber-300 ring-2 ring-amber-400/40 shadow-sm'
+                : 'bg-white/10 hover:bg-white/20 text-white border-white/15'
+            }`}
             aria-label="Ouvrir le menu de navigation"
             aria-expanded={mobileMenuOpen}
           >
             {mobileMenuOpen ? (
-              <X className="w-4 h-4 text-white" />
+              <X className="w-4 h-4" />
             ) : (
-              <Menu className="w-4 h-4 text-white" />
+              <Menu className="w-4 h-4" />
             )}
           </button>
         </div>
       </nav>
 
-      {/* MOBILE EXPANDED MENU DRAWER */}
+      {/* MOBILE EXPANDED MENU DRAWER WITH BACKDROP SCRIM */}
       {mobileMenuOpen && (
-        <div className="pointer-events-auto mt-2 w-full max-w-md rounded-3xl bg-[#0f1217]/95 backdrop-blur-2xl border border-white/15 p-4 shadow-2xl space-y-3 ring-1 ring-white/10 animate-in fade-in slide-in-from-top-3 duration-200">
+        <>
+          {/* Backdrop scrim to dismiss on tap outside */}
+          <div
+            className="fixed inset-0 bg-black/75 backdrop-blur-xs z-40 pointer-events-auto md:hidden animate-in fade-in duration-200"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-hidden="true"
+          />
+
+          {/* Drawer menu content card */}
+          <div className="pointer-events-auto relative z-50 mt-2 w-full max-w-md max-h-[82vh] overflow-y-auto no-scrollbar rounded-3xl bg-[#0f1217]/98 backdrop-blur-2xl border border-white/15 p-4 shadow-2xl space-y-3 ring-1 ring-white/10 animate-in fade-in slide-in-from-top-3 duration-200">
           {/* Top Quick Status */}
           <div className="flex items-center justify-between pb-2 border-b border-white/10 text-xs">
             <div className="flex items-center gap-2">
@@ -321,9 +355,6 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
 
           {/* Primary Navigation Grid */}
           <div className="space-y-1.5">
-            {/* PWA 1-Click Mobile Install Option */}
-            <PWAInstallButton variant="hero" className="w-full justify-between" />
-
             {/* Carte Interactive Mobile Hero Button */}
             {onOpenMap && (
               <button
@@ -483,7 +514,8 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
             </div>
           </div>
         </div>
-      )}
+      </>
+    )}
     </header>
   );
 };

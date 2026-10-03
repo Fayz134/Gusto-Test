@@ -36,13 +36,22 @@ import {
   ExternalLink,
   Sliders,
   ShieldCheck,
+  Globe,
+  Instagram,
+  Facebook,
+  Link as LinkIcon,
+  Share2,
+  Plus,
 } from 'lucide-react';
-import { Restaurant, Language, ViewMode, Dish, MacroFilterType } from '../types';
+import { Restaurant, Language, ViewMode, Dish, MacroFilterType, ComposedMealItem, MealCourseType } from '../types';
 import { I18N_DICT, ALLERGENS_MASTER_LIST } from '../data/i18n';
 import { formatPrice } from '../utils/geo';
-import { getAutoDishName, getAutoCategoryName, getAutoDishDesc } from '../utils/translator';
+import { getAutoDishName, getAutoCategoryName, getAutoDishDesc, getAutoCuisineName, getAutoTagLabel } from '../utils/translator';
 import { RestaurantCustomizerModal } from './RestaurantCustomizerModal';
 import { RestaurantReviewsModal } from './RestaurantReviewsModal';
+import { RestaurantSocialLinksModal } from './RestaurantSocialLinksModal';
+import { MealComposerModal } from './MealComposerModal';
+import { calculateMealTotals, detectDishCourse } from '../utils/mealComposer';
 import { trackPhoneCall } from '../utils/analytics';
 
 interface RestaurantViewProps {
@@ -71,6 +80,15 @@ interface RestaurantViewProps {
   onToggleDishOfTheMoment?: (dishId: string | null, enabled: boolean) => void;
   onShowToast?: (msg: string) => void;
   onUpdateRestaurant?: (updatedRestaurant: Restaurant) => void;
+  composedMeal?: ComposedMealItem[];
+  onAddToMeal?: (dish: Dish, course?: MealCourseType) => void;
+  onRemoveFromMeal?: (dishId: string) => void;
+  onUpdateMealQuantity?: (dishId: string, delta: number) => void;
+  onChangeMealCourse?: (dishId: string, newCourse: MealCourseType) => void;
+  onClearMeal?: () => void;
+  isMealComposerOpen?: boolean;
+  onOpenMealComposer?: () => void;
+  onCloseMealComposer?: () => void;
 }
 
 export const RestaurantView: React.FC<RestaurantViewProps> = ({
@@ -99,11 +117,63 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
   onToggleDishOfTheMoment,
   onShowToast,
   onUpdateRestaurant,
+  composedMeal = [],
+  onAddToMeal,
+  onRemoveFromMeal,
+  onUpdateMealQuantity,
+  onChangeMealCourse,
+  onClearMeal,
+  isMealComposerOpen,
+  onOpenMealComposer,
+  onCloseMealComposer,
 }) => {
   const t = (key: string) => I18N_DICT[currentLang]?.[key] || key;
 
   const [isCustomizerOpen, setIsCustomizerOpen] = useState(false);
   const [isReviewsModalOpen, setIsReviewsModalOpen] = useState(false);
+  const [isSocialModalOpen, setIsSocialModalOpen] = useState(false);
+
+  // Resolve externalLinks (site web, UberEats, Deliveroo) and socialLinks (Instagram, Facebook, TikTok)
+  const resolvedExternalLinks = useMemo(() => ({
+    website: restaurant.externalLinks?.website || restaurant.socialLinks?.website,
+    uberEats: restaurant.externalLinks?.uberEats || restaurant.socialLinks?.uberEats,
+    deliveroo: restaurant.externalLinks?.deliveroo || restaurant.socialLinks?.deliveroo,
+    googleMaps: restaurant.externalLinks?.googleMaps || restaurant.socialLinks?.googleMaps,
+    customLabel: restaurant.externalLinks?.customLabel || restaurant.socialLinks?.customLabel,
+    customUrl: restaurant.externalLinks?.customUrl || restaurant.socialLinks?.customUrl,
+  }), [restaurant.externalLinks, restaurant.socialLinks]);
+
+  const resolvedSocialLinks = useMemo(() => ({
+    instagram: restaurant.socialLinks?.instagram,
+    facebook: restaurant.socialLinks?.facebook,
+    tiktok: restaurant.socialLinks?.tiktok,
+  }), [restaurant.socialLinks]);
+
+  const hasExternalLinks = Boolean(
+    resolvedExternalLinks.website ||
+    resolvedExternalLinks.uberEats ||
+    resolvedExternalLinks.deliveroo
+  );
+
+  const hasSocialLinks = Boolean(
+    resolvedSocialLinks.instagram ||
+    resolvedSocialLinks.facebook ||
+    resolvedSocialLinks.tiktok
+  );
+
+  const hasAnyLinks = hasExternalLinks || hasSocialLinks || Boolean(resolvedExternalLinks.googleMaps || resolvedExternalLinks.customUrl);
+  const hasAnySocialLinks = hasAnyLinks;
+
+  // Meal Composer helpers and fallback state
+  const [internalMealComposerOpen, setInternalMealComposerOpen] = useState(false);
+  const isComposerOpen = isMealComposerOpen !== undefined ? isMealComposerOpen : internalMealComposerOpen;
+  const handleOpenComposer = onOpenMealComposer || (() => setInternalMealComposerOpen(true));
+  const handleCloseComposer = onCloseMealComposer || (() => setInternalMealComposerOpen(false));
+
+  const mealTotals = useMemo(() => calculateMealTotals(composedMeal), [composedMeal]);
+  const isDishInMeal = (dishId: string) => composedMeal.some((i) => i.dish.id === dishId);
+  const getDishMealQty = (dishId: string) =>
+    composedMeal.find((i) => i.dish.id === dishId)?.quantity || 0;
 
   // Customization styling variables
   const custom = restaurant.customization;
@@ -279,14 +349,35 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
     return matchQuery && matchAllergens && matchHalal && matchVegan && matchVegetarian && matchMacro;
   };
 
-  // Filter dishes by category and active criteria
-  const categorizedDishes = useMemo(() => {
-    const activeCats =
-      activeCategoryId === 'all'
-        ? restaurant.categories.filter((c) => c.id !== 'all')
-        : restaurant.categories.filter((c) => c.id === activeCategoryId);
+  // Internal anchor links navigation to specific food categories with smooth scrolling
+  const handleCategoryClick = (catId: string, e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    setActiveCategoryId(catId);
 
-    return activeCats.map((cat) => {
+    if (catId === 'all') {
+      const el = document.getElementById('menu-content') || document.getElementById('menu-categories-bar');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      try {
+        window.history.pushState(null, '', '#menu-content');
+      } catch (_) {}
+    } else {
+      const el = document.getElementById(`category-${catId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      try {
+        window.history.pushState(null, '', `#category-${catId}`);
+      } catch (_) {}
+    }
+  };
+
+  // Filter dishes by category and active criteria - all categories are listed so internal anchor links can navigate to each section
+  const categorizedDishes = useMemo(() => {
+    const availableCats = restaurant.categories.filter((c) => c.id !== 'all');
+
+    return availableCats.map((cat) => {
       const dishes = restaurant.dishes.filter(
         (d) => d.categoryId === cat.id && filterDishMatches(d)
       );
@@ -298,7 +389,6 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
     });
   }, [
     restaurant,
-    activeCategoryId,
     searchQuery,
     selectedAllergens,
     isHalalOnly,
@@ -306,6 +396,52 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
     isVegetarianOnly,
     activeMacroFilter,
   ]);
+
+  // Scroll-spy observer to highlight the currently visible category in the categories nav bar
+  useEffect(() => {
+    const sections = restaurant.categories
+      .filter((c) => c.id !== 'all')
+      .map((c) => document.getElementById(`category-${c.id}`))
+      .filter(Boolean) as HTMLElement[];
+
+    if (sections.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const catId = entry.target.id.replace('category-', '');
+            setActiveCategoryId(catId);
+          }
+        });
+      },
+      {
+        rootMargin: '-80px 0px -60% 0px',
+        threshold: 0,
+      }
+    );
+
+    sections.forEach((sec) => observer.observe(sec));
+
+    return () => observer.disconnect();
+  }, [restaurant.categories, categorizedDishes]);
+
+  // Direct anchor hash navigation on initial page load if URL contains #category-...
+  useEffect(() => {
+    if (window.location.hash) {
+      const hash = window.location.hash.substring(1);
+      if (hash.startsWith('category-')) {
+        const catId = hash.replace('category-', '');
+        setTimeout(() => {
+          const target = document.getElementById(hash);
+          if (target) {
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            setActiveCategoryId(catId);
+          }
+        }, 300);
+      }
+    }
+  }, []);
 
   // Total matching dishes across entire restaurant menu
   const totalMatchingDishes = useMemo(() => {
@@ -324,50 +460,70 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
 
   return (
     <div className="min-h-screen">
-      {/* Top breadcrumb & action bar */}
-      <div className="bg-stone-900/95 backdrop-blur-md text-white px-4 py-2.5 text-xs flex items-center justify-between relative z-20 shadow-md border-b border-stone-800">
-        <button
-          onClick={onBackToPortal}
-          className="flex items-center gap-1.5 font-bold hover:text-amber-300 transition cursor-pointer"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>{t('backToHub')}</span>
-        </button>
-        <div className="flex items-center gap-3">
-          <span className="text-stone-300 hidden sm:inline">
+      {/* Top sticky navigation & back-button bar (PINNED TO TOP OF VIEWPORT) */}
+      <div className="sticky top-0 z-40 bg-stone-900/95 backdrop-blur-md text-white px-2.5 sm:px-6 py-2.5 sm:py-3.5 text-xs flex items-center justify-between shadow-xl border-b border-stone-800 transition-all min-h-[62px] sm:min-h-[72px] pt-[env(safe-area-inset-top,0px)] gap-2 sm:gap-4">
+        {/* LEFT: Bouton Retour */}
+        <div className="flex items-center gap-2 shrink-0 min-w-[70px] sm:min-w-[130px] justify-start">
+          <button
+            onClick={onBackToPortal}
+            className="flex items-center gap-1.5 font-bold hover:text-amber-300 transition cursor-pointer text-xs sm:text-sm group py-1.5 sm:py-2 px-3 sm:px-4 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 shrink-0 touch-manipulation min-h-[36px] sm:min-h-[40px] shadow-xs"
+            title={t('backToHub')}
+          >
+            <ArrowLeft className="w-4 h-4 text-amber-400 group-hover:-translate-x-0.5 transition-transform shrink-0" />
+            <span className="hidden sm:inline">{t('backToHub')}</span>
+            <span className="sm:hidden font-extrabold">{t('back')}</span>
+          </button>
+        </div>
+
+        {/* CENTER: Nom du restaurant AGRANDI et PARFAITEMENT CENTRÉ + Spécialité AGRANDIE */}
+        <div className="flex-1 flex flex-col md:flex-row items-center justify-center gap-1.5 sm:gap-3 text-center min-w-0 px-1 sm:px-3">
+          <h1 className="text-white font-serif font-black text-xl sm:text-2xl md:text-3xl lg:text-4xl tracking-tight truncate drop-shadow-md max-w-full">
             {restaurant.name}
+          </h1>
+          <span
+            className="text-white text-xs sm:text-sm md:text-base font-black px-4 sm:px-5 py-1 sm:py-1.5 rounded-full shadow-lg shrink-0 border border-white/30 tracking-wider uppercase drop-shadow-xs"
+            style={{ backgroundColor: primaryColor }}
+          >
+            {getAutoCuisineName(restaurant.cuisine, currentLang)}
           </span>
+        </div>
+
+        {/* RIGHT: Téléphone, Langue & Accès */}
+        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0 min-w-[70px] sm:min-w-[130px] justify-end">
           {restaurant.phone && custom?.showPhoneBadge !== false && (
             <a
               href={`tel:${restaurant.phone.replace(/[^0-9+]/g, '')}`}
-              className="hidden lg:inline-flex items-center gap-1.5 text-stone-300 hover:text-emerald-400 transition text-[11px] font-medium"
-              title={`Appeler ${restaurant.name} au ${restaurant.phone}`}
+              className="hidden xl:flex items-center gap-1 text-emerald-400 hover:text-emerald-300 transition text-xs font-bold bg-emerald-950/60 hover:bg-emerald-900/80 px-2.5 py-1 rounded-full border border-emerald-500/40 shrink-0 touch-manipulation min-h-[32px] justify-center"
+              title={`${t('callRestaurant')} ${restaurant.name} (${restaurant.phone})`}
             >
-              <Phone className="w-3 h-3 text-emerald-400" />
+              <Phone className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
               <span>{restaurant.phone}</span>
             </a>
           )}
-          <span
-            className="text-white text-[10px] font-bold px-2 py-0.5 rounded-full"
-            style={{ backgroundColor: primaryColor }}
-          >
-            {restaurant.cuisine}
-          </span>
-          <button
-            type="button"
-            onClick={() => setIsCustomizerOpen(true)}
-            className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/10 hover:bg-white/20 text-amber-300 hover:text-amber-200 text-[11px] font-semibold transition cursor-pointer border border-white/20 shadow-xs"
-            title="Personnaliser la page du restaurant"
-          >
-            <Sliders className="w-3 h-3" />
-            <span>Personnaliser</span>
-          </button>
+
+          {/* Quick Language Switcher */}
+          <div className="relative shrink-0">
+            <select
+              value={currentLang}
+              onChange={(e) => onLanguageChange(e.target.value as Language)}
+              className="bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-full px-2.5 sm:px-3 py-1.5 text-xs font-bold focus:outline-none cursor-pointer transition shadow-xs appearance-none pr-5 sm:pr-6 text-center min-h-[36px] touch-manipulation"
+              aria-label="Sélectionner la langue"
+            >
+              <option value="fr" className="bg-[#14171a] text-white">FR</option>
+              <option value="it" className="bg-[#14171a] text-white">IT</option>
+              <option value="en" className="bg-[#14171a] text-white">EN</option>
+              <option value="es" className="bg-[#14171a] text-white">ES</option>
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-1.5 flex items-center text-stone-400">
+              <ChevronRight className="w-2.5 h-2.5 rotate-90" />
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Italian ribbon accent for Italian dining */}
       {(restaurant.id === 'trattoria-bella-vista' || restaurant.id === 'la-cave-a-pizza-aubagne') && (
-        <div className="h-1.5 w-full bg-italian-ribbon hidden md:block md:fixed md:top-8 left-0 z-40 shadow-xs"></div>
+        <div className="h-1.5 w-full bg-italian-ribbon hidden md:block shadow-xs"></div>
       )}
 
       {/* Main restaurant container */}
@@ -415,8 +571,8 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
           </div>
         )}
 
-        {/* Header - on mobile it scrolls away naturally so search bar does not descend with scroll */}
-        <header className="relative md:sticky md:top-20 z-30 bg-[#faf7f2]/95 backdrop-blur-xl border-b border-stone-200/90 shadow-xs transition-all duration-300">
+        {/* Restaurant Header - scrolls away naturally so only the top navigation bar stays sticky */}
+        <header className="relative z-20 bg-[#faf7f2]/95 border-b border-stone-200/90 shadow-xs transition-all duration-300">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-3">
             
             {/* Upper control bar */}
@@ -523,6 +679,20 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                   )}
                 </button>
 
+                {/* Bouton Réseaux & Liens */}
+                <button
+                  type="button"
+                  onClick={() => setIsSocialModalOpen(true)}
+                  className="px-2.5 py-1 rounded-full border border-stone-300/90 hover:border-stone-400 bg-white hover:bg-stone-50 text-stone-800 flex items-center gap-1.5 transition text-[11px] font-bold shadow-xs cursor-pointer"
+                  title="Ajouter ou modifier les réseaux sociaux (Instagram, Facebook, TikTok) et liens (Uber Eats, Deliveroo, Site web)"
+                >
+                  <Share2 className="w-3.5 h-3.5 text-stone-600" />
+                  <span>{t('socialLinks')}</span>
+                  {hasAnySocialLinks && (
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  )}
+                </button>
+
                 {/* Personnaliser Page Button */}
                 <button
                   type="button"
@@ -531,7 +701,7 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                   title="Personnaliser les couleurs, la bannière, le titre et l'ambiance"
                 >
                   <Sliders className="w-3.5 h-3.5 text-amber-700" />
-                  <span>Personnaliser</span>
+                  <span>{t('customizePage')}</span>
                 </button>
               </div>
             </div>
@@ -586,7 +756,7 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                       title="Personnaliser les informations, le style, la bannière et le thème du restaurant"
                     >
                       <Sliders className="w-3.5 h-3.5 text-amber-600 group-hover:rotate-45 transition-transform" />
-                      <span>Personnaliser la page</span>
+                      <span>{t('customizePage')}</span>
                     </button>
                   </div>
 
@@ -609,6 +779,140 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                         </span>
                       </>
                     )}
+                  </div>
+
+                  {/* LIENS RÉSEAUX SOCIAUX & LIENS EXTERNES DIRECTEMENT SOUS LE NOM DU RESTAURANT */}
+                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-2 pt-1 pb-0.5">
+                    {/* External links: Uber Eats, Deliveroo, Site web */}
+                    {resolvedExternalLinks.uberEats && (
+                      <a
+                        href={resolvedExternalLinks.uberEats}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white font-mono text-xs font-bold shadow-xs hover:shadow-sm transition-all hover:scale-105 active:scale-95 group shrink-0"
+                        title="Commander sur Uber Eats (livraison rapide)"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse"></span>
+                        <span>Uber Eats</span>
+                        <ExternalLink className="w-3 h-3 text-emerald-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                      </a>
+                    )}
+
+                    {resolvedExternalLinks.deliveroo && (
+                      <a
+                        href={resolvedExternalLinks.deliveroo}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#00cdbc] hover:bg-[#00b8a8] text-stone-950 font-mono text-xs font-black shadow-xs hover:shadow-sm transition-all hover:scale-105 active:scale-95 group shrink-0"
+                        title="Commander sur Deliveroo"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
+                        <span>Deliveroo</span>
+                        <ExternalLink className="w-3 h-3 text-stone-950 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                      </a>
+                    )}
+
+                    {resolvedExternalLinks.website && (
+                      <a
+                        href={resolvedExternalLinks.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white hover:bg-stone-50 text-stone-850 border border-stone-300 shadow-2xs text-xs font-semibold hover:border-stone-400 transition-all hover:scale-105 active:scale-95 group shrink-0"
+                        title="Consulter le site web officiel du restaurant"
+                      >
+                        <Globe className="w-3.5 h-3.5 text-stone-600 group-hover:text-stone-900" />
+                        <span>{currentLang === 'it' ? 'Sito web' : currentLang === 'es' ? 'Sitio web' : currentLang === 'en' ? 'Website' : 'Site web'}</span>
+                        <ExternalLink className="w-3 h-3 text-stone-400 group-hover:text-stone-600" />
+                      </a>
+                    )}
+
+                    {/* Social links: Instagram, Facebook, TikTok */}
+                    {resolvedSocialLinks.instagram && (
+                      <a
+                        href={resolvedSocialLinks.instagram}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-purple-600 via-rose-500 to-amber-500 hover:opacity-90 text-white text-xs font-bold shadow-xs transition-all hover:scale-105 active:scale-95 group shrink-0"
+                        title="Compte Instagram officiel"
+                      >
+                        <Instagram className="w-3.5 h-3.5 text-white" />
+                        <span>Instagram</span>
+                        <ExternalLink className="w-3 h-3 text-white/80" />
+                      </a>
+                    )}
+
+                    {resolvedSocialLinks.facebook && (
+                      <a
+                        href={resolvedSocialLinks.facebook}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#1877f2] hover:bg-[#166fe5] text-white text-xs font-bold shadow-xs transition-all hover:scale-105 active:scale-95 group shrink-0"
+                        title="Page Facebook officielle"
+                      >
+                        <Facebook className="w-3.5 h-3.5 text-white" />
+                        <span>Facebook</span>
+                        <ExternalLink className="w-3 h-3 text-white/80" />
+                      </a>
+                    )}
+
+                    {resolvedSocialLinks.tiktok && (
+                      <a
+                        href={resolvedSocialLinks.tiktok}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black hover:bg-stone-850 text-white text-xs font-bold shadow-xs transition-all hover:scale-105 active:scale-95 group shrink-0"
+                        title="Profil TikTok officiel"
+                      >
+                        <span className="text-[11px]">🎵</span>
+                        <span>TikTok</span>
+                        <ExternalLink className="w-3 h-3 text-stone-400" />
+                      </a>
+                    )}
+
+                    {/* Optional extra link: Google Maps */}
+                    {resolvedExternalLinks.googleMaps && (
+                      <a
+                        href={resolvedExternalLinks.googleMaps}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-50 hover:bg-red-100 text-red-900 border border-red-200 text-xs font-semibold transition-all hover:scale-105 active:scale-95 group shrink-0"
+                        title="Fiche Google Maps & Avis vérifiés"
+                      >
+                        <MapPin className="w-3.5 h-3.5 text-red-600" />
+                        <span>Google Maps</span>
+                        <ExternalLink className="w-3 h-3 text-red-400" />
+                      </a>
+                    )}
+
+                    {/* Optional extra custom link */}
+                    {resolvedExternalLinks.customUrl && (
+                      <a
+                        href={resolvedExternalLinks.customUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300 text-xs font-bold shadow-xs transition-all hover:scale-105 active:scale-95 group shrink-0"
+                        title={resolvedExternalLinks.customLabel || 'Lien externe'}
+                      >
+                        <LinkIcon className="w-3.5 h-3.5 text-amber-700" />
+                        <span>{resolvedExternalLinks.customLabel || 'Lien'}</span>
+                        <ExternalLink className="w-3 h-3 text-amber-700/70" />
+                      </a>
+                    )}
+
+                    {/* Bouton pour ajouter ou modifier les réseaux & liens */}
+                    <button
+                      type="button"
+                      onClick={() => setIsSocialModalOpen(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold cursor-pointer transition shadow-2xs hover:scale-105 active:scale-95 shrink-0"
+                      title="Ajouter ou modifier les réseaux sociaux (Instagram, Facebook, TikTok) et liens (Uber Eats, Deliveroo, Site web)"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-amber-700" />
+                      <span>
+                        {hasAnyLinks
+                          ? 'Gérer les liens'
+                          : '+ Ajouter liens & réseaux (Uber Eats, Instagram...)'}
+                      </span>
+                    </button>
                   </div>
 
                   {/* Informations du restaurant : Adresse, Téléphone, Avis et Statistiques */}
@@ -679,7 +983,7 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Rechercher un plat, ingrédient..."
+                    placeholder={t('searchDishPlaceholder') || 'Rechercher un plat, ingrédient...'}
                     className="w-full bg-white border border-stone-300 rounded-full pl-9 pr-8 py-2 text-xs text-stone-900 placeholder-stone-400 focus:outline-none shadow-xs"
                     style={{ focusBorderColor: primaryColor }}
                   />
@@ -717,7 +1021,7 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                         : 'text-[#99281a]'
                     }`}
                   />
-                  <span>Allergènes</span>
+                  <span>{t('allergens')}</span>
                   {selectedAllergens.length > 0 && (
                     <span
                       className={`px-1.5 py-0.2 rounded-full text-[10px] font-black flex items-center justify-center ${
@@ -751,7 +1055,7 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                         : 'text-emerald-700'
                     }`}
                   />
-                  <span>Régimes</span>
+                  <span>{t('diets')}</span>
                   {activeRegimesCount > 0 && (
                     <span
                       className={`px-1.5 py-0.2 rounded-full text-[10px] font-black flex items-center justify-center ${
@@ -800,7 +1104,7 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                       }`}
                     >
                       <Leaf className="w-3.5 h-3.5 text-emerald-700" />
-                      <span>Options des régimes</span>
+                      <span>{t('dietOptions')}</span>
                       {activeRegimesCount > 0 && (
                         <span className="bg-emerald-700 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full">
                           {activeRegimesCount}
@@ -818,7 +1122,7 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                         className="text-xs text-[#99281a] hover:text-[#781524] underline font-bold flex items-center gap-1 cursor-pointer"
                       >
                         <RotateCcw className="w-3 h-3" />
-                        <span>Réinitialiser les allergènes</span>
+                        <span>{t('resetAllergens')}</span>
                       </button>
                     )}
 
@@ -829,7 +1133,7 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                         className="text-xs text-emerald-800 hover:text-emerald-950 underline font-bold flex items-center gap-1 cursor-pointer"
                       >
                         <RotateCcw className="w-3 h-3" />
-                        <span>Réinitialiser les régimes</span>
+                        <span>{t('resetDiets')}</span>
                       </button>
                     )}
 
@@ -1130,29 +1434,37 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                   style={{ color: primaryColor }}
                 >
                   <Sliders className="w-3 h-3" />
-                  <span>Personnaliser</span>
+                  <span>{t('customizePage')}</span>
                 </button>
               </div>
             )}
           </div>
 
-          {/* Categories Nav Bar */}
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-t border-stone-200 bg-[#f6f1e8]/90">
-            <nav className="flex overflow-x-auto no-scrollbar py-2.5 gap-2 sm:gap-2.5 scroll-smooth">
+          {/* Categories Nav Bar with Internal Anchor Links */}
+          <div
+            id="menu-categories-bar"
+            className="sticky top-[45px] sm:top-[49px] z-30 max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 border-y border-stone-200 bg-[#f6f1e8]/95 backdrop-blur-md shadow-xs transition-all"
+          >
+            <nav className="flex overflow-x-auto no-scrollbar py-2 sm:py-2.5 gap-1.5 sm:gap-2.5 scroll-smooth touch-pan-x" aria-label="Catégories du menu">
               {restaurant.categories.map((cat) => {
                 const count = getCategoryMatchingCount(cat.id);
+                if (count === 0 && cat.id !== 'all') return null;
+
+                const isSelected = activeCategoryId === cat.id;
+                const targetAnchor = cat.id === 'all' ? '#menu-content' : `#category-${cat.id}`;
 
                 return (
-                  <button
+                  <a
                     key={cat.id}
-                    onClick={() => setActiveCategoryId(cat.id)}
-                    className={`px-3.5 py-1.5 rounded-full text-xs whitespace-nowrap flex items-center gap-2 transition shrink-0 shadow-2xs cursor-pointer ${
-                      activeCategoryId === cat.id
-                        ? 'text-white font-bold shadow-md scale-105'
-                        : 'bg-white text-stone-700 hover:text-stone-900 border border-stone-200 hover:bg-stone-50'
+                    href={targetAnchor}
+                    onClick={(e) => handleCategoryClick(cat.id, e)}
+                    className={`px-3.5 py-1.5 rounded-full text-xs whitespace-nowrap flex items-center gap-2 transition shrink-0 shadow-2xs cursor-pointer border ${
+                      isSelected
+                        ? 'text-white font-bold shadow-md scale-102 border-transparent'
+                        : 'bg-white text-stone-700 hover:text-stone-950 border-stone-300/80 hover:bg-stone-50'
                     }`}
                     style={
-                      activeCategoryId === cat.id
+                      isSelected
                         ? { backgroundColor: primaryColor, boxShadow: `0 4px 12px ${primaryColor}40` }
                         : undefined
                     }
@@ -1161,14 +1473,14 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                     <span>{getCategoryName(cat.id, cat.name)}</span>
                     <span
                       className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                        activeCategoryId === cat.id
+                        isSelected
                           ? 'bg-[#c58b2b] text-stone-900'
                           : 'bg-stone-100 text-stone-600'
                       }`}
                     >
                       {count}
                     </span>
-                  </button>
+                  </a>
                 );
               })}
             </nav>
@@ -1262,7 +1574,7 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                     onClick={() => onOpenDishDetail(momentDish)}
                     className="flex items-center justify-center gap-2 bg-gradient-to-r from-amber-400 to-[#dfab43] hover:from-amber-300 hover:to-amber-400 text-stone-950 font-bold px-5 py-2.5 rounded-2xl text-xs transition shadow-md hover:scale-105 cursor-pointer ring-2 ring-amber-300/80"
                   >
-                    <span>Consulter la fiche</span>
+                    <span>{t('consultDishDetails')}</span>
                     <ChevronRight className="w-4 h-4 text-stone-950" />
                   </button>
 
@@ -1281,8 +1593,8 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
           </div>
         )}
 
-        {/* Dishes Listing by Categories */}
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
+        {/* Dishes Listing by Categories with Internal Anchor IDs */}
+        <main id="menu-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10 scroll-mt-28 sm:scroll-mt-32">
           {/* Carte Élégante Title Header */}
           {viewMode === 'classic' && (
             <div className="text-center py-6 border-b border-stone-300 bg-white/60 rounded-3xl p-6 shadow-2xs backdrop-blur-xs">
@@ -1305,12 +1617,12 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-bold text-stone-700 flex items-center gap-1.5 shrink-0">
                   <SlidersHorizontal className="w-3.5 h-3.5 text-[#99281a]" />
-                  <span>Filtres appliqués :</span>
+                  <span>{t('appliedFilters')}</span>
                 </span>
 
                 {searchQuery && (
                   <span className="inline-flex items-center gap-1 bg-stone-200 text-stone-800 px-2.5 py-0.5 rounded-full text-xs font-medium">
-                    <span>Recherche : &laquo; {searchQuery} &raquo;</span>
+                    <span>{t('searchQueryLabel')} &laquo; {searchQuery} &raquo;</span>
                     <button
                       type="button"
                       onClick={() => setSearchQuery('')}
@@ -1337,7 +1649,7 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                       className="inline-flex items-center gap-1 bg-red-100 text-red-900 border border-red-200 px-2.5 py-0.5 rounded-full text-xs font-semibold"
                     >
                       <span>{alg?.icon}</span>
-                      <span>Sans {name}</span>
+                      <span>{t('without')} {name}</span>
                       <button
                         type="button"
                         onClick={() => onToggleAllergen && onToggleAllergen(algId)}
@@ -1380,7 +1692,7 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                 {isVegetarianOnly && (
                   <span className="inline-flex items-center gap-1 bg-lime-100 text-lime-900 border border-lime-200 px-2.5 py-0.5 rounded-full text-xs font-bold">
                     <span>🌱</span>
-                    <span>Végétarien</span>
+                    <span>{t('vegetarianCertified')}</span>
                     <button
                       type="button"
                       onClick={() => setIsVegetarianOnly(false)}
@@ -1454,7 +1766,7 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                   className="px-5 py-2.5 rounded-full bg-[#99281a] hover:bg-[#781524] text-white font-bold text-xs transition shadow-sm cursor-pointer inline-flex items-center gap-2 active:scale-95"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Réinitialiser les critères et allergènes</span>
+                  <span>{t('resetAllFilters')}</span>
                 </button>
               </div>
             </div>
@@ -1464,7 +1776,11 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
             if (group.dishes.length === 0) return null;
 
             return (
-              <section key={group.category.id} className="space-y-6">
+              <section
+                key={group.category.id}
+                id={`category-${group.category.id}`}
+                className="space-y-6 scroll-mt-28 sm:scroll-mt-32"
+              >
                 
                 {/* Category header */}
                 <div className="flex items-center justify-between pb-3 border-b-2 border-stone-300">
@@ -1516,17 +1832,17 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                               {restaurant.dishOfTheMomentEnabled && restaurant.dishOfTheMomentId === dish.id && (
                                 <span className="bg-gradient-to-r from-amber-400 to-amber-500 text-stone-950 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-md ring-1 ring-amber-300">
                                   <Star className="w-3 h-3 fill-stone-950 text-stone-950" />
-                                  <span>Plat du Moment</span>
+                                  <span>{t('dishOfTheMomentBadgeSmall') || 'Plat du Moment'}</span>
                                 </span>
                               )}
                               {dish.isHalal && (
                                 <span className="bg-emerald-600/90 backdrop-blur-md text-white px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
-                                  <span>🥩</span> Halal
+                                  <span>🥩</span> {t('halalCertified') || 'Halal'}
                                 </span>
                               )}
                               {dish.isVegan && (
                                 <span className="bg-teal-600/90 backdrop-blur-md text-white px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
-                                  <span>🥑</span> Végétalien
+                                  <span>🥑</span> {t('veganCertified') || 'Végétalien'}
                                 </span>
                               )}
                               {dish.tags
@@ -1541,7 +1857,7 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                                   key={tag}
                                   className="bg-stone-900/80 backdrop-blur-md text-white px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider"
                                 >
-                                  {tag}
+                                  {getAutoTagLabel(tag, currentLang)}
                                 </span>
                               ))}
                             </div>
@@ -1610,7 +1926,7 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                             <div className="pt-2 border-t border-stone-100 grid grid-cols-4 gap-1.5 text-center text-xs">
                               <div className="bg-stone-50 border border-stone-200/80 rounded-xl p-1">
                                 <span className="block text-[9px] uppercase font-bold text-stone-400">
-                                  Prot.
+                                  {currentLang === 'it' ? 'Prot.' : currentLang === 'es' ? 'Prot.' : currentLang === 'en' ? 'Prot.' : 'Prot.'}
                                 </span>
                                 <span className="font-bold text-stone-800">
                                   {dish.nutrition.protein}g
@@ -1618,7 +1934,7 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                               </div>
                               <div className="bg-stone-50 border border-stone-200/80 rounded-xl p-1">
                                 <span className="block text-[9px] uppercase font-bold text-stone-400">
-                                  Gluc.
+                                  {currentLang === 'it' ? 'Carb.' : currentLang === 'es' ? 'Carb.' : currentLang === 'en' ? 'Carb.' : 'Gluc.'}
                                 </span>
                                 <span className="font-bold text-stone-800">
                                   {dish.nutrition.carbs}g
@@ -1626,7 +1942,7 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                               </div>
                               <div className="bg-stone-50 border border-stone-200/80 rounded-xl p-1">
                                 <span className="block text-[9px] uppercase font-bold text-stone-400">
-                                  Lip.
+                                  {currentLang === 'it' ? 'Grassi' : currentLang === 'es' ? 'Grasas' : currentLang === 'en' ? 'Fat' : 'Lip.'}
                                 </span>
                                 <span className="font-bold text-stone-800">
                                   {dish.nutrition.fat}g
@@ -1634,7 +1950,7 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                               </div>
                               <div className="bg-stone-50 border border-stone-200/80 rounded-xl p-1">
                                 <span className="block text-[9px] uppercase font-bold text-stone-400">
-                                  Origine
+                                  {t('originLabel') || 'Origine'}
                                 </span>
                                 <span className="font-bold text-[#781524] truncate block text-[11px]">
                                   {dish.region || 'Frais'}
@@ -1644,21 +1960,18 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                           </div>
                         </div>
 
-                        {/* Card Footer */}
-                        <div className="p-5 pt-0 border-t border-stone-100 mt-2">
+                        {/* Card Footer: Fiche du plat */}
+                        <div className="p-4 pt-0 border-t border-stone-100 mt-2">
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               onOpenDishDetail(dish);
                             }}
-                            className="w-full py-2.5 px-4 rounded-2xl bg-stone-50 hover:bg-[#8a3311] active:bg-[#71290d] text-stone-700 hover:text-white active:text-white text-xs font-bold transition flex items-center justify-between group/btn cursor-pointer shadow-2xs touch-manipulation"
+                            className="w-full py-2.5 px-4 rounded-2xl bg-stone-50 hover:bg-stone-100 text-stone-700 hover:text-stone-950 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs touch-manipulation border border-stone-200/80 group/btn"
                           >
-                            <span className="flex items-center gap-2">
-                              <span>🍽️</span>
-                              <span>Consulter la fiche</span>
-                            </span>
-                            <ChevronRight className="w-4 h-4 text-stone-400 group-hover/btn:text-white transition-transform group-hover/btn:translate-x-0.5" />
+                            <span>🍽️ {t('consultDishDetails')}</span>
+                            <ChevronRight className="w-3.5 h-3.5 text-stone-400 group-hover/btn:translate-x-0.5 transition-transform" />
                           </button>
                         </div>
                       </article>
@@ -1683,17 +1996,17 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                             {restaurant.dishOfTheMomentEnabled && restaurant.dishOfTheMomentId === dish.id && (
                               <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-400 text-stone-950 font-black border border-amber-500 flex items-center gap-1 shadow-xs">
                                 <Star className="w-2.5 h-2.5 fill-stone-950 text-stone-950" />
-                                <span>Plat du Moment</span>
+                                <span>{t('dishOfTheMomentBadgeSmall') || 'Plat du Moment'}</span>
                               </span>
                             )}
                             {dish.isHalal && (
                               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-300 flex items-center gap-0.5">
-                                <span>🥩</span> Halal
+                                <span>🥩</span> {t('halalCertified') || 'Halal'}
                               </span>
                             )}
                             {dish.isVegan && (
                               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-teal-100 text-teal-800 font-bold border border-teal-300 flex items-center gap-0.5">
-                                <span>🥑</span> Végétalien
+                                <span>🥑</span> {t('veganCertified') || 'Végétalien'}
                               </span>
                             )}
                             {dish.region && (
@@ -1710,10 +2023,12 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                         <p className="text-xs text-stone-600 leading-relaxed">
                           {getDishDesc(dish)}
                         </p>
-                        <div className="text-[10px] font-mono text-stone-400">
-                          <span>
-                            {dish.nutrition.kcal} kcal • Prot: {dish.nutrition.protein}g • Gluc: {dish.nutrition.carbs}g • Lip: {dish.nutrition.fat}g
-                          </span>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
+                          <div className="text-[10px] font-mono text-stone-400">
+                            <span>
+                              {dish.nutrition.kcal} kcal • Prot: {dish.nutrition.protein}g • Gluc: {dish.nutrition.carbs}g • Lip: {dish.nutrition.fat}g
+                            </span>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -1761,9 +2076,10 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
           <div className="mt-4 flex items-center justify-center gap-2">
             <button
               onClick={onBackToPortal}
-              className="px-6 py-2.5 rounded-full bg-stone-900 hover:bg-stone-800 text-white font-bold text-xs transition cursor-pointer shadow-md"
+              className="px-6 py-2.5 rounded-full bg-stone-900 hover:bg-stone-800 text-white font-bold text-xs transition cursor-pointer shadow-md inline-flex items-center gap-2"
             >
-              {t('backToHub')}
+              <ArrowLeft className="w-4 h-4 text-amber-400" />
+              <span>{t('backToHub')}</span>
             </button>
           </div>
 
@@ -1786,7 +2102,7 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                 className="hover:text-rose-600 transition cursor-pointer flex items-center gap-1.5 opacity-60 hover:opacity-100 text-rose-500"
               >
                 <LogOut className="w-3 h-3" />
-                <span>Déconnexion</span>
+                <span>{t('logout')}</span>
               </button>
             )}
             {onOpenCreatorDashboard && (
@@ -1796,12 +2112,25 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
                 className="hover:text-stone-800 transition cursor-pointer flex items-center gap-1.5 opacity-60 hover:opacity-100"
               >
                 <Crown className="w-3 h-3" />
-                <span>Dashboard</span>
+                <span>{t('dashboard')}</span>
               </button>
             )}
           </div>
         </footer>
       </div>
+
+      {/* Restaurant Social Links & Online Delivery Modal */}
+      <RestaurantSocialLinksModal
+        isOpen={isSocialModalOpen}
+        onClose={() => setIsSocialModalOpen(false)}
+        restaurant={restaurant}
+        onSave={(updated) => {
+          if (onUpdateRestaurant) {
+            onUpdateRestaurant(updated);
+          }
+        }}
+        onShowToast={onShowToast || (() => {})}
+      />
 
       {/* Restaurant Page Customizer Modal */}
       <RestaurantCustomizerModal
@@ -1830,6 +2159,61 @@ export const RestaurantView: React.FC<RestaurantViewProps> = ({
           }
         }}
       />
+
+      {/* Fallback Meal Composer Modal if not handled by parent */}
+      {!onOpenMealComposer && (
+        <MealComposerModal
+          isOpen={isComposerOpen}
+          onClose={handleCloseComposer}
+          restaurant={restaurant}
+          currentLang={currentLang}
+          items={composedMeal}
+          onAddItem={(d, c) => onAddToMeal && onAddToMeal(d, c)}
+          onRemoveItem={(dishId) => onRemoveFromMeal && onRemoveFromMeal(dishId)}
+          onUpdateQuantity={(dishId, delta) => onUpdateMealQuantity && onUpdateMealQuantity(dishId, delta)}
+          onChangeCourse={(dishId, course) => onChangeMealCourse && onChangeMealCourse(dishId, course)}
+          onClearMeal={onClearMeal || (() => {})}
+          onOpenDishDetail={onOpenDishDetail}
+          onShowToast={onShowToast}
+        />
+      )}
+
+      {/* BULLE FLOTTANTE « MON REPAS IDÉAL » (FIXED EN BAS À DROITE) */}
+      <aside aria-label="Bulle Mon repas idéal" className="fixed bottom-6 right-6 z-40 print:hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
+        <button
+          type="button"
+          onClick={handleOpenComposer}
+          className={`flex items-center gap-2.5 sm:gap-3 px-4 sm:px-5 py-3 sm:py-3.5 rounded-full shadow-2xl transition-all transform hover:scale-105 active:scale-95 cursor-pointer touch-manipulation border ${
+            composedMeal.length > 0
+              ? 'bg-gradient-to-r from-amber-400 via-amber-500 to-orange-500 text-stone-950 border-amber-300 ring-4 ring-amber-400/30 shadow-amber-500/30'
+              : 'bg-stone-900/95 hover:bg-stone-850 text-amber-300 border-amber-400/50 hover:border-amber-300 backdrop-blur-md shadow-black/40'
+          }`}
+          title="Ouvrir la bulle Mon repas idéal"
+        >
+          <div className="relative">
+            <Sparkles className={`w-5 h-5 ${composedMeal.length > 0 ? 'fill-stone-950 text-stone-950' : 'text-amber-400 animate-pulse'}`} />
+            {composedMeal.length > 0 && (
+              <span className="absolute -top-2.5 -right-2.5 min-w-[20px] h-5 px-1 rounded-full bg-stone-950 text-amber-300 text-[10px] font-black font-mono flex items-center justify-center ring-2 ring-amber-400">
+                {mealTotals.totalCount}
+              </span>
+            )}
+          </div>
+          <div className="flex flex-col text-left">
+            <span className="font-serif font-extrabold text-xs sm:text-sm tracking-wide leading-tight">
+              Mon repas idéal
+            </span>
+            {composedMeal.length > 0 ? (
+              <span className="text-[10px] font-mono font-bold text-stone-950/80 leading-tight">
+                {mealTotals.totalKcal} kcal • {mealTotals.totalProtein}g prot
+              </span>
+            ) : (
+              <span className="text-[10px] font-mono text-amber-300/80 leading-tight">
+                Calculateur macros
+              </span>
+            )}
+          </div>
+        </button>
+      </aside>
     </div>
   );
 };

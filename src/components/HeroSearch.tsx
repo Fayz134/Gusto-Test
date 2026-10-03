@@ -3,16 +3,9 @@ import {
   Search,
   Navigation,
   Sparkles,
-  ShieldAlert,
   X,
   RotateCcw,
   SlidersHorizontal,
-  Flame,
-  Dumbbell,
-  Leaf,
-  Droplets,
-  Zap,
-  Check,
   Map,
 } from 'lucide-react';
 import { Language, MacroFilterType } from '../types';
@@ -38,6 +31,19 @@ interface HeroSearchProps {
   onOpenMap?: () => void;
   isMapActive?: boolean;
 }
+
+const QUICK_SEARCH_SUGGESTIONS = [
+  { label: '🍕 Pizzas feu de bois', query: 'pizza', keywords: ['pizza', 'pizzas'] },
+  { label: '🥩 Grillades Halal', query: 'grillades', keywords: ['grillades', 'grillade', 'halal'] },
+  { label: '🐟 Poissons & Daurade', query: 'daurade', keywords: ['daurade', 'poisson', 'poissons'] },
+  { label: '🍜 Ramen & Gyozas', query: 'ramen', keywords: ['ramen', 'gyoza', 'gyozas'] },
+  { label: '🍔 Burgers du Terroir', query: 'burger', keywords: ['burger', 'burgers'] },
+  { label: '🥞 Galettes Sarrasin (Sans gluten)', query: 'galette', keywords: ['galette', 'galettes', 'sarrasin'] },
+  { label: '🥑 Bowls Végétariens', query: 'bowl', keywords: ['bowl', 'bowls', 'végétarien', 'veggie'] },
+  { label: '🐙 Poulpe grillé', query: 'poulpe', keywords: ['poulpe'] },
+  { label: '🦐 Gambas', query: 'gambas', keywords: ['gambas', 'gamba'] },
+  { label: '🥘 Terroir de Provence', query: 'terroir', keywords: ['terroir', 'provence', 'provençale'] },
+];
 
 export const HeroSearch: React.FC<HeroSearchProps> = ({
   currentLang,
@@ -197,210 +203,47 @@ export const HeroSearch: React.FC<HeroSearchProps> = ({
             </button>
           </div>
 
-          {/* SECTION 1: NUTRITIONAL MACROS & CRITERIA ("la plus riche en prot, moins calorique etc") */}
-          <div className="space-y-1.5 pt-1">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-stone-300 font-mono text-[10px] sm:text-[11px] flex items-center gap-1.5">
-                <SlidersHorizontal className="w-3 h-3 text-amber-300" />
-                <span>{t('searchCriteriaLabel')}</span>
+          {/* BANDEAU DE SUGGESTIONS RAPIDES EN 1 CLIC DANS LA RECHERCHE */}
+          <div className="pt-2 border-t border-white/10 space-y-1">
+            <div className="flex items-center justify-between text-[11px] sm:text-xs">
+              <span className="text-amber-200 font-serif italic flex items-center gap-1.5 text-[11px] sm:text-xs">
+                <Sparkles className="w-3 h-3 text-amber-300" />
+                <span>Suggestions rapides en 1 clic :</span>
               </span>
-
-              {/* Mobile Quick Dropdown for macros */}
-              <div className="sm:hidden">
-                <select
-                  value={activeMacroFilter}
-                  onChange={(e) => onMacroFilterChange(e.target.value as MacroFilterType)}
-                  className="bg-white/15 text-stone-100 text-[11px] font-semibold rounded-xl px-2 py-1 border border-white/20 focus:outline-none focus:ring-1 focus:ring-amber-300"
-                  aria-label="Critères nutritionnels"
-                >
-                  <option value="all" className="text-stone-900">
-                    {t('allDishes')}
-                  </option>
-                  <option value="high-protein" className="text-stone-900">
-                    {t('highProtein')}
-                  </option>
-                  <option value="low-cal" className="text-stone-900">
-                    {t('lowCal')}
-                  </option>
-                  <option value="low-carb" className="text-stone-900">
-                    {t('lowCarb')}
-                  </option>
-                  <option value="low-fat" className="text-stone-900">
-                    {t('lowFat')}
-                  </option>
-                  <option value="high-cal" className="text-stone-900">
-                    {t('highCal')}
-                  </option>
-                  <option value="veg" className="text-stone-900">
-                    {t('veg')}
-                  </option>
-                </select>
-              </div>
-            </div>
-
-            {/* Macro Quick Chips */}
-            <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-1 text-xs">
-              <button
-                type="button"
-                onClick={() => onMacroFilterChange('all')}
-                className={`px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-semibold transition cursor-pointer shrink-0 ${
-                  activeMacroFilter === 'all'
-                    ? 'bg-white text-stone-900 shadow-sm font-bold ring-1 ring-white/80'
-                    : 'bg-white/10 hover:bg-white/20 text-stone-200'
-                }`}
-              >
-                {t('allDishes')}
-              </button>
-
-              {/* Ouvert actuellement quick chip */}
-              {onToggleOpenOnly && (
+              {searchQuery && (
                 <button
                   type="button"
-                  onClick={onToggleOpenOnly}
-                  className={`px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-semibold transition cursor-pointer shrink-0 flex items-center gap-1.5 border ${
-                    isOpenOnly
-                      ? 'bg-emerald-500 text-white shadow-sm font-bold border-emerald-400 ring-2 ring-emerald-400/40'
-                      : 'bg-white/10 hover:bg-white/20 text-stone-200 border-white/10'
-                  }`}
-                  title="Afficher uniquement les restaurants ouverts actuellement"
+                  onClick={() => onSearchChange('')}
+                  className="text-[10px] text-stone-300 hover:text-white underline cursor-pointer"
                 >
-                  <span className={`w-2 h-2 rounded-full ${isOpenOnly ? 'bg-white animate-pulse' : 'bg-emerald-400'}`}></span>
-                  <span>{t('openNowOnly') || 'Ouvert actuellement'}</span>
-                  {isOpenOnly && <Check className="w-3 h-3 text-white" />}
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => onMacroFilterChange('high-protein')}
-                className={`px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-semibold transition cursor-pointer shrink-0 ${
-                  activeMacroFilter === 'high-protein'
-                    ? 'bg-amber-400 text-stone-950 shadow-sm font-bold ring-1 ring-amber-300'
-                    : 'bg-white/10 hover:bg-white/20 text-stone-200'
-                }`}
-              >
-                <span>{t('highProtein')}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => onMacroFilterChange('low-cal')}
-                className={`px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-semibold transition cursor-pointer shrink-0 ${
-                  activeMacroFilter === 'low-cal'
-                    ? 'bg-emerald-400 text-stone-950 shadow-sm font-bold ring-1 ring-emerald-300'
-                    : 'bg-white/10 hover:bg-white/20 text-stone-200'
-                }`}
-              >
-                <span>{t('lowCal')}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => onMacroFilterChange('low-carb')}
-                className={`px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-semibold transition cursor-pointer shrink-0 ${
-                  activeMacroFilter === 'low-carb'
-                    ? 'bg-cyan-400 text-stone-950 shadow-sm font-bold ring-1 ring-cyan-300'
-                    : 'bg-white/10 hover:bg-white/20 text-stone-200'
-                }`}
-              >
-                <span>{t('lowCarb')}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => onMacroFilterChange('low-fat')}
-                className={`px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-semibold transition cursor-pointer shrink-0 ${
-                  activeMacroFilter === 'low-fat'
-                    ? 'bg-blue-300 text-stone-950 shadow-sm font-bold ring-1 ring-blue-200'
-                    : 'bg-white/10 hover:bg-white/20 text-stone-200'
-                }`}
-              >
-                <span>{t('lowFat')}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => onMacroFilterChange('high-cal')}
-                className={`px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-semibold transition cursor-pointer shrink-0 ${
-                  activeMacroFilter === 'high-cal'
-                    ? 'bg-orange-400 text-stone-950 shadow-sm font-bold ring-1 ring-orange-300'
-                    : 'bg-white/10 hover:bg-white/20 text-stone-200'
-                }`}
-              >
-                <span>{t('highCal')}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => onMacroFilterChange('veg')}
-                className={`px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-semibold transition cursor-pointer shrink-0 ${
-                  activeMacroFilter === 'veg'
-                    ? 'bg-lime-400 text-stone-950 shadow-sm font-bold ring-1 ring-lime-300'
-                    : 'bg-white/10 hover:bg-white/20 text-stone-200'
-                }`}
-              >
-                <span>{t('veg')}</span>
-              </button>
-            </div>
-          </div>
-
-          {/* SECTION 2: FAST ALLERGEN EXCLUSION CHIPS IN SEARCH BAR */}
-          <div className="space-y-1.5 pt-1 border-t border-white/10">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-stone-300 font-mono text-[10px] sm:text-[11px] flex items-center gap-1.5">
-                <ShieldAlert className="w-3 h-3 text-red-400" />
-                <span>{t('excludeAllergensPrompt')}</span>
-              </span>
-
-              {selectedAllergens.length > 0 && (
-                <button
-                  onClick={onResetAllergens}
-                  className="text-[10px] text-amber-300 hover:text-amber-200 underline font-mono flex items-center gap-1 cursor-pointer"
-                >
-                  <RotateCcw className="w-2.5 h-2.5" />
-                  <span>{t('resetFilters')}</span>
+                  Effacer
                 </button>
               )}
             </div>
-
-            {/* Quick 1-click Allergen toggles */}
-            <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-1 text-xs">
-              {ALLERGENS_MASTER_LIST.map((alg) => {
-                const isSelected = selectedAllergens.includes(alg.id);
-                const name =
-                  currentLang === 'it'
-                    ? alg.name_it
-                    : currentLang === 'en'
-                    ? alg.name_en
-                    : currentLang === 'es'
-                    ? (alg.name_es || alg.name)
-                    : alg.name;
-
+            <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar scroll-smooth py-1 touch-pan-x">
+              {QUICK_SEARCH_SUGGESTIONS.map((item) => {
+                const currentQ = searchQuery.toLowerCase().trim();
+                const isActive =
+                  Boolean(currentQ) &&
+                  (currentQ === item.query.toLowerCase() ||
+                    currentQ === item.label.toLowerCase() ||
+                    item.keywords.some((k) => currentQ === k));
                 return (
                   <button
+                    key={item.label}
                     type="button"
-                    key={alg.id}
-                    onClick={() => onToggleAllergen(alg.id)}
-                    className={`px-2.5 sm:px-3 py-1 rounded-xl text-[10px] sm:text-[11px] font-medium transition flex items-center gap-1.5 cursor-pointer shrink-0 border ${
-                      isSelected
-                        ? 'bg-red-500/90 text-white border-red-400 font-bold shadow-sm ring-1 ring-red-400/50'
-                        : 'bg-white/5 hover:bg-white/15 text-stone-200 border-white/10'
+                    onClick={() => onSearchChange(isActive ? '' : item.query)}
+                    className={`px-3 py-1.5 rounded-full text-[11px] sm:text-xs font-semibold whitespace-nowrap transition cursor-pointer shrink-0 border flex items-center gap-1.5 shadow-2xs active:scale-95 ${
+                      isActive
+                        ? 'bg-amber-400 text-stone-950 font-bold border-amber-300 ring-2 ring-amber-300/50 shadow-sm scale-102'
+                        : 'bg-white/10 hover:bg-white/20 text-stone-200 hover:text-white border-white/15'
                     }`}
                   >
-                    <span>{alg.icon}</span>
-                    <span className="truncate">{name}</span>
-                    {isSelected && <X className="w-3 h-3 ml-0.5" />}
+                    <span>{item.label}</span>
+                    {isActive && <X className="w-3 h-3 text-stone-950 ml-0.5" />}
                   </button>
                 );
               })}
-
-              <button
-                type="button"
-                onClick={onOpenAllergenModal}
-                className="px-2.5 sm:px-3 py-1 rounded-xl text-[10px] sm:text-[11px] font-semibold transition bg-white/10 hover:bg-white/20 text-amber-200 border border-amber-300/30 cursor-pointer shrink-0"
-              >
-                {t('allAllergensBtn')}
-              </button>
             </div>
           </div>
 

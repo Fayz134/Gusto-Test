@@ -12,9 +12,23 @@ export const LA_CAVE_A_PIZZA_AUBAGNE: Restaurant = {
   coords: { lat: 43.2941, lng: 5.5719 },
   distance: 0.3,
   avgKcal: 620,
+  rating: 4.9,
+  reviewsCount: 184,
+  isGustoRecommended: true,
   amenities: ['terrasse', 'parking', 'climatisation', 'pmr', 'chiens'],
   dishOfTheMomentId: 'cp_t_figatelli_brousse',
   dishOfTheMomentEnabled: true,
+  socialLinks: {
+    instagram: 'https://www.instagram.com/lacaveapizza_aubagne/',
+    facebook: 'https://www.facebook.com/lacaveapizzaaubagne/',
+    tiktok: 'https://www.tiktok.com/@lacaveapizza',
+  },
+  externalLinks: {
+    website: 'https://lacaveapizza-aubagne.fr',
+    uberEats: 'https://www.ubereats.com/fr/store/la-cave-a-pizza/aubagne',
+    deliveroo: 'https://deliveroo.fr/fr/menu/marseille/aubagne/la-cave-a-pizza',
+    googleMaps: 'https://maps.google.com/?q=La+Cave+A+Pizza+124+Avenue+des+Soeurs+Gastine+Aubagne',
+  },
   openingHours: {
     isOpenNow: true,
     days: 'Lundi - Dimanche',

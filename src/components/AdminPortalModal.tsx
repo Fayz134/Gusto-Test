@@ -33,8 +33,14 @@ import {
   Languages,
   Crown,
   Star,
+  Share2,
+  Globe,
+  Instagram,
+  Facebook,
+  ExternalLink,
+  MapPin,
 } from 'lucide-react';
-import { Dish, Language, MenuCategory, Restaurant } from '../types';
+import { Dish, Language, MenuCategory, Restaurant, RestaurantSocialLinks, RestaurantExternalLinks } from '../types';
 import { I18N_DICT, ALLERGENS_MASTER_LIST } from '../data/i18n';
 import { formatPrice } from '../utils/geo';
 import { processImageFile } from '../utils/imageUpload';
@@ -59,6 +65,8 @@ interface AdminPortalModalProps {
   onClearInitialEditingDish?: () => void;
   onOpenCreatorDashboard?: () => void;
   onToggleDishOfTheMoment?: (dishId: string | null, enabled: boolean) => void;
+  onUpdateRestaurant?: (updatedRestaurant: Restaurant) => void;
+  onUpdateLinks?: (socialLinks: RestaurantSocialLinks, externalLinks: RestaurantExternalLinks) => void;
 }
 
 const AVAILABLE_CATEGORY_ICONS = [
@@ -120,11 +128,182 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
   onClearInitialEditingDish,
   onOpenCreatorDashboard,
   onToggleDishOfTheMoment,
+  onUpdateRestaurant,
+  onUpdateLinks,
 }) => {
   const t = (key: string) => I18N_DICT[currentLang]?.[key] || key;
 
-  // Tabs: 'list' (view all dishes, search, edit, delete), 'moment' (manage plat du moment), 'form' (add or edit dish), 'categories'
-  const [activeTab, setActiveTab] = useState<'list' | 'moment' | 'form' | 'categories'>('list');
+  // Tabs: 'list' (view all dishes, search, edit, delete), 'moment' (manage plat du moment), 'form' (add or edit dish), 'categories', 'links'
+  const [activeTab, setActiveTab] = useState<'list' | 'moment' | 'form' | 'categories' | 'links'>('list');
+
+  // Social and external links management state
+  const [linksForm, setLinksForm] = useState({
+    website: activeRestaurant.externalLinks?.website || activeRestaurant.socialLinks?.website || '',
+    uberEats: activeRestaurant.externalLinks?.uberEats || activeRestaurant.socialLinks?.uberEats || '',
+    deliveroo: activeRestaurant.externalLinks?.deliveroo || activeRestaurant.socialLinks?.deliveroo || '',
+    instagram: activeRestaurant.socialLinks?.instagram || '',
+    facebook: activeRestaurant.socialLinks?.facebook || '',
+    tiktok: activeRestaurant.socialLinks?.tiktok || '',
+    googleMaps: activeRestaurant.externalLinks?.googleMaps || activeRestaurant.socialLinks?.googleMaps || '',
+    customLabel: activeRestaurant.externalLinks?.customLabel || activeRestaurant.socialLinks?.customLabel || '',
+    customUrl: activeRestaurant.externalLinks?.customUrl || activeRestaurant.socialLinks?.customUrl || '',
+  });
+
+  const [isSavingLinks, setIsSavingLinks] = useState(false);
+
+  // Sync state whenever modal opens or activeRestaurant changes
+  useEffect(() => {
+    if (isOpen) {
+      setLinksForm({
+        website: activeRestaurant.externalLinks?.website || activeRestaurant.socialLinks?.website || '',
+        uberEats: activeRestaurant.externalLinks?.uberEats || activeRestaurant.socialLinks?.uberEats || '',
+        deliveroo: activeRestaurant.externalLinks?.deliveroo || activeRestaurant.socialLinks?.deliveroo || '',
+        instagram: activeRestaurant.socialLinks?.instagram || '',
+        facebook: activeRestaurant.socialLinks?.facebook || '',
+        tiktok: activeRestaurant.socialLinks?.tiktok || '',
+        googleMaps: activeRestaurant.externalLinks?.googleMaps || activeRestaurant.socialLinks?.googleMaps || '',
+        customLabel: activeRestaurant.externalLinks?.customLabel || activeRestaurant.socialLinks?.customLabel || '',
+        customUrl: activeRestaurant.externalLinks?.customUrl || activeRestaurant.socialLinks?.customUrl || '',
+      });
+    }
+  }, [isOpen, activeRestaurant]);
+
+  // Helper to format/normalize URLs
+  const normalizeUrl = (key: string, val: string): string => {
+    const trimmed = val.trim();
+    if (!trimmed) return '';
+    if (key === 'instagram') {
+      if (trimmed.startsWith('@')) {
+        return `https://www.instagram.com/${trimmed.slice(1)}/`;
+      }
+      if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+        return `https://www.instagram.com/${trimmed}/`;
+      }
+    }
+    if (key === 'tiktok') {
+      if (trimmed.startsWith('@')) {
+        return `https://www.tiktok.com/@${trimmed.slice(1)}`;
+      }
+      if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+        return `https://www.tiktok.com/@${trimmed}`;
+      }
+    }
+    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://') && key !== 'customLabel') {
+      return `https://${trimmed}`;
+    }
+    return trimmed;
+  };
+
+  const handleTestLink = (key: string, url: string) => {
+    if (!url) return;
+    const finalUrl = normalizeUrl(key, url);
+    window.open(finalUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleSaveLinks = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setIsSavingLinks(true);
+
+    const cleanedWebsite = normalizeUrl('website', linksForm.website);
+    const cleanedUberEats = normalizeUrl('uberEats', linksForm.uberEats);
+    const cleanedDeliveroo = normalizeUrl('deliveroo', linksForm.deliveroo);
+    const cleanedInstagram = normalizeUrl('instagram', linksForm.instagram);
+    const cleanedFacebook = normalizeUrl('facebook', linksForm.facebook);
+    const cleanedTiktok = normalizeUrl('tiktok', linksForm.tiktok);
+    const cleanedGoogleMaps = normalizeUrl('googleMaps', linksForm.googleMaps);
+    const cleanedCustomLabel = linksForm.customLabel.trim();
+    const cleanedCustomUrl = linksForm.customUrl ? normalizeUrl('customUrl', linksForm.customUrl) : '';
+
+    const newSocialLinks: RestaurantSocialLinks = {
+      instagram: cleanedInstagram || undefined,
+      facebook: cleanedFacebook || undefined,
+      tiktok: cleanedTiktok || undefined,
+      // Compatibility fields
+      website: cleanedWebsite || undefined,
+      uberEats: cleanedUberEats || undefined,
+      deliveroo: cleanedDeliveroo || undefined,
+      googleMaps: cleanedGoogleMaps || undefined,
+      customLabel: cleanedCustomLabel || undefined,
+      customUrl: cleanedCustomUrl || undefined,
+    };
+
+    const newExternalLinks: RestaurantExternalLinks = {
+      website: cleanedWebsite || undefined,
+      uberEats: cleanedUberEats || undefined,
+      deliveroo: cleanedDeliveroo || undefined,
+      googleMaps: cleanedGoogleMaps || undefined,
+      customLabel: cleanedCustomLabel || undefined,
+      customUrl: cleanedCustomUrl || undefined,
+    };
+
+    const updatedRestaurant: Restaurant = {
+      ...activeRestaurant,
+      socialLinks: newSocialLinks,
+      externalLinks: newExternalLinks,
+      customization: {
+        ...(activeRestaurant.customization || {}),
+        socialLinks: newSocialLinks,
+        externalLinks: newExternalLinks,
+      },
+    };
+
+    if (onUpdateLinks) {
+      onUpdateLinks(newSocialLinks, newExternalLinks);
+    }
+    if (onUpdateRestaurant) {
+      onUpdateRestaurant(updatedRestaurant);
+    }
+    onShowToast(`Présence en ligne et liens de commande de « ${activeRestaurant.name} » enregistrés ! 🌐`);
+    setIsSavingLinks(false);
+  };
+
+  const hasAnyConfiguredLinks = Boolean(
+    linksForm.website ||
+    linksForm.uberEats ||
+    linksForm.deliveroo ||
+    linksForm.instagram ||
+    linksForm.facebook ||
+    linksForm.tiktok ||
+    linksForm.googleMaps ||
+    linksForm.customUrl
+  );
+
+  const activeLinksCount = useMemo(() => {
+    let count = 0;
+    if (linksForm.uberEats) count++;
+    if (linksForm.deliveroo) count++;
+    if (linksForm.website) count++;
+    if (linksForm.instagram) count++;
+    if (linksForm.facebook) count++;
+    if (linksForm.tiktok) count++;
+    if (linksForm.googleMaps) count++;
+    if (linksForm.customUrl) count++;
+    return count;
+  }, [linksForm]);
+
+  const isLinksDirty = useMemo(() => {
+    const currentWeb = activeRestaurant.externalLinks?.website || activeRestaurant.socialLinks?.website || '';
+    const currentUber = activeRestaurant.externalLinks?.uberEats || activeRestaurant.socialLinks?.uberEats || '';
+    const currentDeli = activeRestaurant.externalLinks?.deliveroo || activeRestaurant.socialLinks?.deliveroo || '';
+    const currentInsta = activeRestaurant.socialLinks?.instagram || '';
+    const currentFb = activeRestaurant.socialLinks?.facebook || '';
+    const currentTiktok = activeRestaurant.socialLinks?.tiktok || '';
+    const currentMaps = activeRestaurant.externalLinks?.googleMaps || activeRestaurant.socialLinks?.googleMaps || '';
+    const currentCustomLbl = activeRestaurant.externalLinks?.customLabel || activeRestaurant.socialLinks?.customLabel || '';
+    const currentCustomUrl = activeRestaurant.externalLinks?.customUrl || activeRestaurant.socialLinks?.customUrl || '';
+
+    return (
+      linksForm.website !== currentWeb ||
+      linksForm.uberEats !== currentUber ||
+      linksForm.deliveroo !== currentDeli ||
+      linksForm.instagram !== currentInsta ||
+      linksForm.facebook !== currentFb ||
+      linksForm.tiktok !== currentTiktok ||
+      linksForm.googleMaps !== currentMaps ||
+      linksForm.customLabel !== currentCustomLbl ||
+      linksForm.customUrl !== currentCustomUrl
+    );
+  }, [linksForm, activeRestaurant]);
 
   // Login state
   const [pinInput, setPinInput] = useState('');
@@ -847,6 +1026,29 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
                 <FolderPlus className="w-3.5 h-3.5" />
                 <span>Catégories ({activeRestaurant.categories.length})</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('links')}
+                className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap relative ${
+                  activeTab === 'links'
+                    ? 'bg-white text-[#99281a] shadow-xs ring-1 ring-[#99281a]/20'
+                    : 'text-stone-600 hover:text-stone-900'
+                }`}
+              >
+                <Share2 className="w-3.5 h-3.5" />
+                <span>Réseaux & Liens</span>
+                {activeLinksCount > 0 ? (
+                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800 font-mono font-bold">
+                    {activeLinksCount}
+                  </span>
+                ) : (
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                )}
+                {isLinksDirty && (
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" title="Modifications non enregistrées"></span>
+                )}
+              </button>
             </div>
 
             {/* TAB CONTENT (SCROLLABLE) */}
@@ -856,7 +1058,45 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
                  ========================================================================= */}
               {activeTab === 'list' && (
                 <div className="space-y-3.5">
-                  {/* OPTION PLAT DU MOMENT (ACTIVER / DÉSACTIVER & CHOISIR LE PLAT) */}
+                  {/* SHORTCUT BANNER: RÉSEAUX SOCIAUX & COMMANDES EN LIGNE */}
+                  <div className="bg-gradient-to-r from-stone-900 via-stone-850 to-stone-900 text-white rounded-2xl p-3.5 sm:p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center text-amber-300 shrink-0">
+                        <Share2 className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="text-xs sm:text-sm font-bold text-white flex items-center gap-2 flex-wrap">
+                          <span>Présence en Ligne & Liens de Commande</span>
+                          {hasAnyConfiguredLinks ? (
+                            <span className="text-[10px] font-mono px-2 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                              {activeLinksCount} lien{activeLinksCount > 1 ? 's' : ''} actif{activeLinksCount > 1 ? 's' : ''}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-mono px-2 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                              À configurer
+                            </span>
+                          )}
+                          {isLinksDirty && (
+                            <span className="text-[10px] font-mono px-2 py-0.2 rounded-full bg-amber-400 text-stone-950 font-bold border border-amber-300 animate-pulse">
+                              Modifications en attente
+                            </span>
+                          )}
+                        </h4>
+                        <p className="text-[11px] text-stone-300 mt-0.5 truncate">
+                          Gérez vos boutons Uber Eats, Deliveroo, Instagram, TikTok, Facebook et site web.
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('links')}
+                      className="px-3.5 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-950 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95 shrink-0"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                      <span>Gérer les liens</span>
+                    </button>
+                  </div>
                   <div className="bg-gradient-to-r from-amber-500/15 via-amber-400/10 to-orange-500/10 border-2 border-amber-300 rounded-2xl p-3.5 sm:p-4 shadow-xs space-y-3">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
@@ -2399,6 +2639,589 @@ export const AdminPortalModal: React.FC<AdminPortalModalProps> = ({
                       })}
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* =========================================================================
+                 TAB 5: RÉSEAUX SOCIAUX & LIENS EXTERNES (PRÉSENCE EN LIGNE & LIVRAISON)
+                 ========================================================================= */}
+              {activeTab === 'links' && (
+                <div className="space-y-4">
+                    {/* Header Intro Banner */}
+                  <div className="bg-gradient-to-r from-stone-900 via-stone-850 to-stone-900 text-white rounded-2xl p-4 sm:p-5 shadow-sm border border-stone-800">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-start sm:items-center gap-3">
+                        <div className="w-11 h-11 rounded-xl bg-amber-400/20 border border-amber-400/30 flex items-center justify-center text-amber-300 shrink-0">
+                          <Share2 className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+                            <span>Présence en Ligne & Liens de Commande</span>
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                              {activeRestaurant.name}
+                            </span>
+                          </h3>
+                          <p className="text-xs text-stone-300 mt-1 max-w-xl">
+                            Configurez vos liens officiels de livraison (Uber Eats, Deliveroo), votre site web et vos réseaux sociaux. Ces boutons s'affichent avec élégance directement sous le nom de votre établissement.
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleSaveLinks}
+                        disabled={isSavingLinks}
+                        className={`px-4 py-2 rounded-xl text-stone-950 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-md shrink-0 ${
+                          isLinksDirty
+                            ? 'bg-amber-400 hover:bg-amber-300 ring-2 ring-amber-300 animate-pulse active:scale-95'
+                            : 'bg-stone-200 hover:bg-stone-100 text-stone-800'
+                        }`}
+                      >
+                        <Check className="w-4 h-4 text-stone-950" />
+                        <span>{isSavingLinks ? 'Enregistrement...' : 'Enregistrer les liens'}</span>
+                      </button>
+                    </div>
+
+                    {/* UNSAVED MODIFICATIONS ALERT */}
+                    {isLinksDirty && (
+                      <div className="mt-3.5 p-2.5 rounded-xl bg-amber-500/20 border border-amber-400/40 text-amber-200 text-xs flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                          <span>Modifications non enregistrées — pensez à enregistrer pour mettre à jour la page restaurant.</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleSaveLinks}
+                          disabled={isSavingLinks}
+                          className="px-3 py-1 bg-amber-400 hover:bg-amber-300 text-stone-950 font-bold text-xs rounded-lg transition shrink-0 cursor-pointer shadow-xs active:scale-95"
+                        >
+                          Enregistrer maintenant
+                        </button>
+                      </div>
+                    )}
+
+                    {/* LIVE PREVIEW OF BADGES */}
+                    <div className="mt-4 pt-3.5 border-t border-stone-700/70">
+                      <div className="text-[11px] font-mono text-stone-400 flex items-center gap-1.5 mb-2">
+                        <Eye className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Aperçu en temps réel (tel qu'affiché sous le nom du restaurant) :</span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 p-2.5 rounded-xl bg-stone-950/60 border border-stone-800">
+                        {linksForm.uberEats && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-700 text-white font-mono text-xs font-bold shadow-xs">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse"></span>
+                            <span>Uber Eats</span>
+                            <ExternalLink className="w-3 h-3 text-emerald-200" />
+                          </span>
+                        )}
+                        {linksForm.deliveroo && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#00cdbc] text-stone-950 font-mono text-xs font-black shadow-xs">
+                            <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
+                            <span>Deliveroo</span>
+                            <ExternalLink className="w-3 h-3 text-stone-950" />
+                          </span>
+                        )}
+                        {linksForm.website && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white text-stone-900 border border-stone-300 text-xs font-semibold shadow-xs">
+                            <Globe className="w-3 h-3 text-stone-600" />
+                            <span>Site web</span>
+                            <ExternalLink className="w-3 h-3 text-stone-400" />
+                          </span>
+                        )}
+                        {linksForm.instagram && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-r from-purple-600 via-rose-500 to-amber-500 text-white text-xs font-bold shadow-xs">
+                            <Instagram className="w-3 h-3 text-white" />
+                            <span>Instagram</span>
+                            <ExternalLink className="w-3 h-3 text-white/80" />
+                          </span>
+                        )}
+                        {linksForm.facebook && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#1877f2] text-white text-xs font-bold shadow-xs">
+                            <Facebook className="w-3 h-3 text-white" />
+                            <span>Facebook</span>
+                            <ExternalLink className="w-3 h-3 text-white/80" />
+                          </span>
+                        )}
+                        {linksForm.tiktok && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-black text-white text-xs font-bold border border-stone-700 shadow-xs">
+                            <span className="text-[10px]">🎵</span>
+                            <span>TikTok</span>
+                            <ExternalLink className="w-3 h-3 text-stone-400" />
+                          </span>
+                        )}
+                        {linksForm.googleMaps && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-50 text-red-900 border border-red-200 text-xs font-semibold">
+                            <MapPin className="w-3.5 h-3.5 text-red-600" />
+                            <span>Google Maps</span>
+                            <ExternalLink className="w-3 h-3 text-red-400" />
+                          </span>
+                        )}
+                        {linksForm.customUrl && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-900 border border-amber-300 text-xs font-semibold">
+                            <LinkIcon className="w-3.5 h-3.5 text-amber-700" />
+                            <span>{linksForm.customLabel || 'Lien personnalisé'}</span>
+                            <ExternalLink className="w-3 h-3 text-amber-600" />
+                          </span>
+                        )}
+                        {!hasAnyConfiguredLinks && (
+                          <span className="text-xs text-stone-400 italic">
+                            Aucun lien configuré pour le moment. Renseignez les champs ci-dessous pour activer les boutons.
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleSaveLinks} className="space-y-4">
+                    {/* SECTION 1: EXTERNAL LINKS / LIVRAISON & COMMANDE */}
+                    <div className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-200 shadow-xs space-y-4">
+                      <div className="flex items-center gap-2 border-b border-stone-100 pb-2.5">
+                        <span className="w-7 h-7 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center font-bold text-xs">
+                          🛵
+                        </span>
+                        <div>
+                          <h4 className="text-xs sm:text-sm font-bold text-stone-900">
+                            Liens de Commande en Ligne & Livraison (External Links)
+                          </h4>
+                          <p className="text-[11px] text-stone-500">
+                            Permettez à vos clients de commander directement via vos plateformes partenaires (Uber Eats, Deliveroo, site officiel).
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Uber Eats */}
+                        <div className="space-y-1.5 p-3 rounded-xl bg-emerald-50/50 border border-emerald-100">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-stone-850 flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+                              <span>Uber Eats</span>
+                            </label>
+                            {linksForm.uberEats && (
+                              <button
+                                type="button"
+                                onClick={() => handleTestLink('uberEats', linksForm.uberEats)}
+                                className="text-[11px] text-emerald-800 hover:text-emerald-950 font-bold inline-flex items-center gap-1 hover:underline cursor-pointer"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                <span>Tester</span>
+                              </button>
+                            )}
+                          </div>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={linksForm.uberEats}
+                              onChange={(e) => setLinksForm((prev) => ({ ...prev, uberEats: e.target.value }))}
+                              placeholder="https://www.ubereats.com/fr/store/..."
+                              className="w-full pl-3 pr-8 py-2 bg-white border border-stone-300 rounded-xl text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                            />
+                            {linksForm.uberEats && (
+                              <button
+                                type="button"
+                                onClick={() => setLinksForm((prev) => ({ ...prev, uberEats: '' }))}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 p-0.5 rounded cursor-pointer"
+                                title="Effacer le lien"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-stone-500">
+                            URL de la page Uber Eats de votre établissement.
+                          </p>
+                        </div>
+
+                        {/* Deliveroo */}
+                        <div className="space-y-1.5 p-3 rounded-xl bg-teal-50/50 border border-teal-100">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-stone-850 flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-[#00cdbc]"></span>
+                              <span>Deliveroo</span>
+                            </label>
+                            {linksForm.deliveroo && (
+                              <button
+                                type="button"
+                                onClick={() => handleTestLink('deliveroo', linksForm.deliveroo)}
+                                className="text-[11px] text-teal-800 hover:text-teal-950 font-bold inline-flex items-center gap-1 hover:underline cursor-pointer"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                <span>Tester</span>
+                              </button>
+                            )}
+                          </div>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={linksForm.deliveroo}
+                              onChange={(e) => setLinksForm((prev) => ({ ...prev, deliveroo: e.target.value }))}
+                              placeholder="https://deliveroo.fr/fr/menu/..."
+                              className="w-full pl-3 pr-8 py-2 bg-white border border-stone-300 rounded-xl text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#00cdbc] focus:border-[#00cdbc]"
+                            />
+                            {linksForm.deliveroo && (
+                              <button
+                                type="button"
+                                onClick={() => setLinksForm((prev) => ({ ...prev, deliveroo: '' }))}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 p-0.5 rounded cursor-pointer"
+                                title="Effacer le lien"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-stone-500">
+                            URL de la page Deliveroo de votre restaurant.
+                          </p>
+                        </div>
+
+                        {/* Site Web Officiel */}
+                        <div className="space-y-1.5 p-3 rounded-xl bg-stone-50 border border-stone-200 md:col-span-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-stone-850 flex items-center gap-1.5">
+                              <Globe className="w-3.5 h-3.5 text-stone-700" />
+                              <span>Site Web Officiel / Réservation directe</span>
+                            </label>
+                            {linksForm.website && (
+                              <button
+                                type="button"
+                                onClick={() => handleTestLink('website', linksForm.website)}
+                                className="text-[11px] text-stone-800 hover:text-stone-950 font-bold inline-flex items-center gap-1 hover:underline cursor-pointer"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                <span>Tester</span>
+                              </button>
+                            )}
+                          </div>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={linksForm.website}
+                              onChange={(e) => setLinksForm((prev) => ({ ...prev, website: e.target.value }))}
+                              placeholder="https://mon-restaurant.fr"
+                              className="w-full pl-3 pr-8 py-2 bg-white border border-stone-300 rounded-xl text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#99281a] focus:border-[#99281a]"
+                            />
+                            {linksForm.website && (
+                              <button
+                                type="button"
+                                onClick={() => setLinksForm((prev) => ({ ...prev, website: '' }))}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 p-0.5 rounded cursor-pointer"
+                                title="Effacer le lien"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-stone-500">
+                            Site officiel, page d'accueil ou système de réservation direct de votre restaurant.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* SECTION 2: SOCIAL LINKS / RÉSEAUX SOCIAUX */}
+                    <div className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-200 shadow-xs space-y-4">
+                      <div className="flex items-center gap-2 border-b border-stone-100 pb-2.5">
+                        <span className="w-7 h-7 rounded-lg bg-purple-50 border border-purple-200 text-purple-700 flex items-center justify-center font-bold text-xs">
+                          📱
+                        </span>
+                        <div>
+                          <h4 className="text-xs sm:text-sm font-bold text-stone-900">
+                            Réseaux Sociaux Officiels (Social Links)
+                          </h4>
+                          <p className="text-[11px] text-stone-500">
+                            Liez vos comptes Instagram, Facebook et TikTok pour fidéliser votre clientèle.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {/* Instagram */}
+                        <div className="space-y-1.5 p-3 rounded-xl bg-rose-50/40 border border-rose-100">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-stone-850 flex items-center gap-1.5">
+                              <Instagram className="w-3.5 h-3.5 text-rose-600" />
+                              <span>Instagram</span>
+                            </label>
+                            {linksForm.instagram && (
+                              <button
+                                type="button"
+                                onClick={() => handleTestLink('instagram', linksForm.instagram)}
+                                className="text-[11px] text-rose-800 hover:text-rose-950 font-bold inline-flex items-center gap-1 hover:underline cursor-pointer"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                <span>Tester</span>
+                              </button>
+                            )}
+                          </div>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={linksForm.instagram}
+                              onChange={(e) => setLinksForm((prev) => ({ ...prev, instagram: e.target.value }))}
+                              placeholder="@monrestaurant ou URL"
+                              className="w-full pl-3 pr-8 py-2 bg-white border border-stone-300 rounded-xl text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500"
+                            />
+                            {linksForm.instagram && (
+                              <button
+                                type="button"
+                                onClick={() => setLinksForm((prev) => ({ ...prev, instagram: '' }))}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 p-0.5 rounded cursor-pointer"
+                                title="Effacer le lien"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-stone-500">
+                            Nom d'utilisateur (@pseudo) ou lien complet.
+                          </p>
+                        </div>
+
+                        {/* Facebook */}
+                        <div className="space-y-1.5 p-3 rounded-xl bg-blue-50/40 border border-blue-100">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-stone-850 flex items-center gap-1.5">
+                              <Facebook className="w-3.5 h-3.5 text-[#1877f2]" />
+                              <span>Facebook</span>
+                            </label>
+                            {linksForm.facebook && (
+                              <button
+                                type="button"
+                                onClick={() => handleTestLink('facebook', linksForm.facebook)}
+                                className="text-[11px] text-blue-800 hover:text-blue-950 font-bold inline-flex items-center gap-1 hover:underline cursor-pointer"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                <span>Tester</span>
+                              </button>
+                            )}
+                          </div>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={linksForm.facebook}
+                              onChange={(e) => setLinksForm((prev) => ({ ...prev, facebook: e.target.value }))}
+                              placeholder="https://facebook.com/..."
+                              className="w-full pl-3 pr-8 py-2 bg-white border border-stone-300 rounded-xl text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                            {linksForm.facebook && (
+                              <button
+                                type="button"
+                                onClick={() => setLinksForm((prev) => ({ ...prev, facebook: '' }))}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 p-0.5 rounded cursor-pointer"
+                                title="Effacer le lien"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-stone-500">
+                            Lien de la page Facebook officielle.
+                          </p>
+                        </div>
+
+                        {/* TikTok */}
+                        <div className="space-y-1.5 p-3 rounded-xl bg-stone-100/70 border border-stone-200">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-stone-850 flex items-center gap-1.5">
+                              <span className="text-xs">🎵</span>
+                              <span>TikTok</span>
+                            </label>
+                            {linksForm.tiktok && (
+                              <button
+                                type="button"
+                                onClick={() => handleTestLink('tiktok', linksForm.tiktok)}
+                                className="text-[11px] text-stone-800 hover:text-stone-950 font-bold inline-flex items-center gap-1 hover:underline cursor-pointer"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                <span>Tester</span>
+                              </button>
+                            )}
+                          </div>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={linksForm.tiktok}
+                              onChange={(e) => setLinksForm((prev) => ({ ...prev, tiktok: e.target.value }))}
+                              placeholder="@monrestaurant ou URL"
+                              className="w-full pl-3 pr-8 py-2 bg-white border border-stone-300 rounded-xl text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-700 focus:border-stone-700"
+                            />
+                            {linksForm.tiktok && (
+                              <button
+                                type="button"
+                                onClick={() => setLinksForm((prev) => ({ ...prev, tiktok: '' }))}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 p-0.5 rounded cursor-pointer"
+                                title="Effacer le lien"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-stone-500">
+                            Pseudo TikTok (@compte) ou lien du profil.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* SECTION 3: GOOGLE MAPS & LIEN PERSONNALISÉ */}
+                    <div className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-200 shadow-xs space-y-4">
+                      <div className="flex items-center gap-2 border-b border-stone-100 pb-2.5">
+                        <span className="w-7 h-7 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 flex items-center justify-center font-bold text-xs">
+                          ⭐
+                        </span>
+                        <div>
+                          <h4 className="text-xs sm:text-sm font-bold text-stone-900">
+                            Google Maps & Lien Complémentaire Personnalisé
+                          </h4>
+                          <p className="text-[11px] text-stone-500">
+                            Améliorez votre référencement local et proposez un lien additionnel (TheFork, Tripadvisor, Réservation, etc.).
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Google Maps */}
+                        <div className="space-y-1.5 p-3 rounded-xl bg-red-50/40 border border-red-100">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-stone-850 flex items-center gap-1.5">
+                              <MapPin className="w-3.5 h-3.5 text-red-600" />
+                              <span>Fiche Google Maps & Avis</span>
+                            </label>
+                            {linksForm.googleMaps && (
+                              <button
+                                type="button"
+                                onClick={() => handleTestLink('googleMaps', linksForm.googleMaps)}
+                                className="text-[11px] text-red-800 hover:text-red-950 font-bold inline-flex items-center gap-1 hover:underline cursor-pointer"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                <span>Tester</span>
+                              </button>
+                            )}
+                          </div>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={linksForm.googleMaps}
+                              onChange={(e) => setLinksForm((prev) => ({ ...prev, googleMaps: e.target.value }))}
+                              placeholder="https://maps.google.com/..."
+                              className="w-full pl-3 pr-8 py-2 bg-white border border-stone-300 rounded-xl text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                            />
+                            {linksForm.googleMaps && (
+                              <button
+                                type="button"
+                                onClick={() => setLinksForm((prev) => ({ ...prev, googleMaps: '' }))}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 p-0.5 rounded cursor-pointer"
+                                title="Effacer le lien"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-stone-500">
+                            Lien vers votre fiche Google Business / Google Maps.
+                          </p>
+                        </div>
+
+                        {/* Lien Personnalisé */}
+                        <div className="space-y-1.5 p-3 rounded-xl bg-amber-50/40 border border-amber-100">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-stone-850 flex items-center gap-1.5">
+                              <LinkIcon className="w-3.5 h-3.5 text-amber-700" />
+                              <span>Lien Personnalisé (Optionnel)</span>
+                            </label>
+                            {linksForm.customUrl && (
+                              <button
+                                type="button"
+                                onClick={() => handleTestLink('customUrl', linksForm.customUrl)}
+                                className="text-[11px] text-amber-800 hover:text-amber-950 font-bold inline-flex items-center gap-1 hover:underline cursor-pointer"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                <span>Tester</span>
+                              </button>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-3 gap-2">
+                            <input
+                              type="text"
+                              value={linksForm.customLabel}
+                              onChange={(e) => setLinksForm((prev) => ({ ...prev, customLabel: e.target.value }))}
+                              placeholder="Libellé (ex: TheFork)"
+                              className="col-span-1 px-3 py-2 bg-white border border-stone-300 rounded-xl text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                            />
+                            <div className="col-span-2 relative">
+                              <input
+                                type="text"
+                                value={linksForm.customUrl}
+                                onChange={(e) => setLinksForm((prev) => ({ ...prev, customUrl: e.target.value }))}
+                                placeholder="https://thefork.fr/..."
+                                className="w-full pl-3 pr-8 py-2 bg-white border border-stone-300 rounded-xl text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                              />
+                              {linksForm.customUrl && (
+                                <button
+                                  type="button"
+                                  onClick={() => setLinksForm((prev) => ({ ...prev, customUrl: '' }))}
+                                  className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 p-0.5 rounded cursor-pointer"
+                                  title="Effacer le lien"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <p className="text-[10px] text-stone-500">
+                            Bouton d'action additionnel personnalisé (TheFork, Tripadvisor, Réservation table...).
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bottom Action Buttons */}
+                    <div className="flex items-center justify-between gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLinksForm({
+                            website: activeRestaurant.externalLinks?.website || activeRestaurant.socialLinks?.website || '',
+                            uberEats: activeRestaurant.externalLinks?.uberEats || activeRestaurant.socialLinks?.uberEats || '',
+                            deliveroo: activeRestaurant.externalLinks?.deliveroo || activeRestaurant.socialLinks?.deliveroo || '',
+                            instagram: activeRestaurant.socialLinks?.instagram || '',
+                            facebook: activeRestaurant.socialLinks?.facebook || '',
+                            tiktok: activeRestaurant.socialLinks?.tiktok || '',
+                            googleMaps: activeRestaurant.externalLinks?.googleMaps || activeRestaurant.socialLinks?.googleMaps || '',
+                            customLabel: activeRestaurant.externalLinks?.customLabel || activeRestaurant.socialLinks?.customLabel || '',
+                            customUrl: activeRestaurant.externalLinks?.customUrl || activeRestaurant.socialLinks?.customUrl || '',
+                          });
+                          onShowToast('Modifications réinitialisées aux valeurs enregistrées.');
+                        }}
+                        className="px-3.5 py-2 rounded-xl text-xs font-semibold text-stone-600 hover:text-stone-900 hover:bg-stone-100 transition flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Réinitialiser</span>
+                      </button>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('list')}
+                          className="px-4 py-2 rounded-xl text-xs font-semibold text-stone-700 hover:bg-stone-100 transition cursor-pointer"
+                        >
+                          Retour à la carte
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={isSavingLinks}
+                          className={`px-5 py-2.5 rounded-xl text-white text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-md ${
+                            isLinksDirty
+                              ? 'bg-[#99281a] hover:bg-[#802216] ring-2 ring-amber-400 active:scale-95'
+                              : 'bg-stone-800 hover:bg-stone-900'
+                          }`}
+                        >
+                          <Check className="w-4 h-4 text-white" />
+                          <span>{isSavingLinks ? 'Enregistrement...' : 'Enregistrer la présence en ligne'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </form>
                 </div>
               )}
             </div>

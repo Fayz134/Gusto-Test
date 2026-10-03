@@ -14,6 +14,7 @@ import { Restaurant, Language, MacroFilterType, AMENITIES_MASTER_LIST } from '..
 import { I18N_DICT } from '../data/i18n';
 import { trackPhoneCall } from '../utils/analytics';
 import { calcDistanceKm, calcTravelTimes } from '../utils/geo';
+import { getAutoCuisineName } from '../utils/translator';
 import { Share2, Footprints, Car } from 'lucide-react';
 
 interface RestaurantCardProps {
@@ -125,13 +126,13 @@ export const RestaurantCard: React.FC<RestaurantCardProps> = ({
           {/* Top badges */}
           <div className="absolute top-3 left-3 flex items-center gap-1.5 flex-wrap z-10">
             {(isNewBadge || restaurant.isNew) && (
-              <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-amber-500 via-rose-500 to-red-600 text-white shadow-[0_4px_12px_rgba(244,63,94,0.55)] border border-white/40 flex items-center gap-1 animate-pulse">
+               <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-amber-500 via-rose-500 to-red-600 text-white shadow-[0_4px_12px_rgba(244,63,94,0.55)] border border-white/40 flex items-center gap-1 animate-pulse">
                 <Sparkles className="w-2.5 h-2.5 text-amber-200 fill-amber-200" />
-                <span>Nouveau</span>
+                <span>{currentLang === 'it' ? 'Nuovo' : currentLang === 'es' ? 'Nuevo' : currentLang === 'en' ? 'New' : 'Nouveau'}</span>
               </span>
             )}
             <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-stone-900/80 backdrop-blur-md text-amber-300 border border-amber-300/30">
-              {restaurant.cuisine}
+              {getAutoCuisineName(restaurant.cuisine, currentLang)}
             </span>
             {restaurant.isHalalCertified && (
               <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-600/95 backdrop-blur-md text-white border border-emerald-400/50 shadow-sm flex items-center gap-1">

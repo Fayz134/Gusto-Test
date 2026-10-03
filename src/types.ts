@@ -60,6 +60,27 @@ export interface OpeningHours {
   dinner: string;
 }
 
+export interface RestaurantSocialLinks {
+  instagram?: string;
+  facebook?: string;
+  tiktok?: string;
+  website?: string;
+  uberEats?: string;
+  deliveroo?: string;
+  googleMaps?: string;
+  customLabel?: string;
+  customUrl?: string;
+}
+
+export interface RestaurantExternalLinks {
+  website?: string;
+  uberEats?: string;
+  deliveroo?: string;
+  googleMaps?: string;
+  customLabel?: string;
+  customUrl?: string;
+}
+
 export interface RestaurantCustomization {
   themePreset?: 'rubis' | 'olive' | 'slate' | 'terracotta' | 'riviera' | 'cuivre' | 'custom';
   primaryColor?: string; // Hex color for buttons, badges, highlights
@@ -81,6 +102,8 @@ export interface RestaurantCustomization {
   showHoursBadge?: boolean;
   welcomeMessage?: string;
   cardStyle?: 'rounded' | 'sharp' | 'glass';
+  socialLinks?: RestaurantSocialLinks;
+  externalLinks?: RestaurantExternalLinks;
 }
 
 export interface Restaurant {
@@ -105,6 +128,8 @@ export interface Restaurant {
   dishOfTheMomentId?: string;
   dishOfTheMomentEnabled?: boolean;
   customization?: RestaurantCustomization;
+  socialLinks?: RestaurantSocialLinks;
+  externalLinks?: RestaurantExternalLinks;
   isWebVerified?: boolean;
   verifiedSources?: { title: string; uri: string }[];
   isNew?: boolean;
@@ -222,3 +247,13 @@ export interface RestaurantRegistration {
   sampleDishes?: string;
   draftRestaurant?: Restaurant;
 }
+
+export type MealCourseType = 'starter' | 'main' | 'dessert' | 'drink' | 'extra';
+
+export interface ComposedMealItem {
+  dish: Dish;
+  course: MealCourseType;
+  quantity: number;
+}
+
+export type MealTargetGoal = 'balanced' | 'high-protein' | 'light' | 'custom';

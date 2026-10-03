@@ -41,7 +41,7 @@ export const OfflineIndicator: React.FC = () => {
           </div>
           <div className="flex-1 min-w-0 pr-1 space-y-0.5">
             <div className="font-extrabold text-amber-300 flex items-center gap-1.5">
-              <span>Mode Hors-Ligne (PWA)</span>
+              <span>Mode Hors-Ligne</span>
               <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span>
             </div>
             <p className="text-[11px] text-stone-300 leading-tight">

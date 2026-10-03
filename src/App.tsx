@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Restaurant, RestaurantRegistration, Language, MacroFilterType, Dish, MenuCategory } from './types';
+import { Restaurant, RestaurantRegistration, Language, MacroFilterType, Dish, MenuCategory, ComposedMealItem, MealCourseType, RestaurantSocialLinks, RestaurantExternalLinks } from './types';
 import { INITIAL_RESTAURANTS_DATA } from './data/restaurants';
 import { INITIAL_REGISTRATIONS_DATA } from './data/registrations';
 import { I18N_DICT } from './data/i18n';
@@ -10,6 +10,8 @@ import { RestaurantCard } from './components/RestaurantCard';
 import { GlobalDishResults } from './components/GlobalDishResults';
 import { RestaurantView } from './components/RestaurantView';
 import { DishDetailModal } from './components/DishDetailModal';
+import { MealComposerModal } from './components/MealComposerModal';
+import { detectDishCourse } from './utils/mealComposer';
 import { AllergenFilterModal } from './components/AllergenFilterModal';
 import { AdminPortalModal } from './components/AdminPortalModal';
 import { RestaurantRegistrationModal } from './components/RestaurantRegistrationModal';
@@ -21,7 +23,6 @@ import { ShareRestaurantModal } from './components/ShareRestaurantModal';
 import { getSavedDietaryProfile } from './utils/dietaryProfile';
 import { DietaryProfile } from './types';
 import { OfflineIndicator } from './components/OfflineIndicator';
-import { PWAInstallButton } from './components/PWAInstallButton';
 import { KeyRound, Crown, LogOut, Building2, Sparkles, LayoutGrid, Map } from 'lucide-react';
 import {
   trackSiteVisit,
@@ -31,7 +32,7 @@ import {
 import { InteractiveRestaurantsMap } from './components/InteractiveRestaurantsMap';
 import { getStoredReviews, calculateRestaurantReviewStats } from './data/reviews';
 
-const STORAGE_KEY = 'gusto_restaurants_catalog_v4';
+const STORAGE_KEY = 'gusto_restaurants_catalog_aubagne_v5';
 const REGISTRATIONS_STORAGE_KEY = 'gusto_restaurant_registrations_v2';
 
 function enrichWithReviews(list: Restaurant[]): Restaurant[] {
@@ -69,17 +70,13 @@ export default function App() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Verify if Cave a pizza exists and has the full menu loaded
-          const caveAPizza = parsed.find((r: Restaurant) => r.id === 'la-cave-a-pizza-aubagne');
-          if (caveAPizza && caveAPizza.dishes && caveAPizza.dishes.length >= 35) {
-            baseList = parsed.map((r: Restaurant) => ({
-              ...r,
-              dishOfTheMomentEnabled:
-                r.dishOfTheMomentEnabled !== undefined ? r.dishOfTheMomentEnabled : true,
-              dishOfTheMomentId:
-                r.dishOfTheMomentId || r.dishes?.[0]?.id,
-            }));
-          }
+          baseList = parsed.map((r: Restaurant) => ({
+            ...r,
+            dishOfTheMomentEnabled:
+              r.dishOfTheMomentEnabled !== undefined ? r.dishOfTheMomentEnabled : true,
+            dishOfTheMomentId:
+              r.dishOfTheMomentId || r.dishes?.[0]?.id,
+          }));
         }
       }
     } catch (e) {
@@ -87,7 +84,7 @@ export default function App() {
     }
     return enrichWithReviews(baseList);
   });
-  const [activeRestaurantId, setActiveRestaurantId] = useState<string>('trattoria-bella-vista');
+  const [activeRestaurantId, setActiveRestaurantId] = useState<string>('la-cave-a-pizza-aubagne');
 
   // Track site visit on mount & listen to URL hash #creator or #dashboard
   useEffect(() => {
@@ -158,6 +155,101 @@ export default function App() {
   const [isHalalOnly, setIsHalalOnly] = useState(() => Boolean(initialDietProfile?.isHalal));
   const [isVeganOnly, setIsVeganOnly] = useState(() => Boolean(initialDietProfile?.isVegan));
   const [isOpenOnly, setIsOpenOnly] = useState(false);
+
+  // "Mon Repas Idéal" / Composed Meals state per restaurant with localStorage persistence
+  const MEAL_STORAGE_KEY = 'gusto_composed_meals_v2';
+  const [composedMeals, setComposedMeals] = useState<Record<string, ComposedMealItem[]>>(() => {
+    try {
+      const saved = localStorage.getItem(MEAL_STORAGE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.warn('Could not read saved composed meals', e);
+    }
+    return {};
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(MEAL_STORAGE_KEY, JSON.stringify(composedMeals));
+    } catch (e) {
+      console.warn('Could not save composed meals', e);
+    }
+  }, [composedMeals]);
+
+  const [isMealComposerOpen, setIsMealComposerOpen] = useState(false);
+
+  const activeComposedMeal = useMemo(() => {
+    return composedMeals[activeRestaurantId] || [];
+  }, [composedMeals, activeRestaurantId]);
+
+  const handleAddToMeal = (dish: Dish, restaurantId: string = activeRestaurantId, course?: MealCourseType) => {
+    setComposedMeals((prev) => {
+      const list = prev[restaurantId] ? [...prev[restaurantId]] : [];
+      const existingIndex = list.findIndex((i) => i.dish.id === dish.id);
+      const resto = restaurants.find((r) => r.id === restaurantId);
+      const assignedCourse = course || detectDishCourse(dish, resto?.categories);
+
+      if (existingIndex >= 0) {
+        list[existingIndex] = {
+          ...list[existingIndex],
+          quantity: (list[existingIndex].quantity || 1) + 1,
+        };
+      } else {
+        list.push({
+          dish,
+          course: assignedCourse,
+          quantity: 1,
+        });
+      }
+      return { ...prev, [restaurantId]: list };
+    });
+
+    showToast(`« ${dish.name_fr || dish.name} » ajouté à Mon Repas Idéal ! 🍽️`);
+  };
+
+  const handleRemoveFromMeal = (dishId: string, restaurantId: string = activeRestaurantId) => {
+    setComposedMeals((prev) => {
+      const list = (prev[restaurantId] || []).filter((i) => i.dish.id !== dishId);
+      return { ...prev, [restaurantId]: list };
+    });
+  };
+
+  const handleUpdateMealQuantity = (dishId: string, delta: number, restaurantId: string = activeRestaurantId) => {
+    setComposedMeals((prev) => {
+      const list = prev[restaurantId] ? [...prev[restaurantId]] : [];
+      const existingIndex = list.findIndex((i) => i.dish.id === dishId);
+      if (existingIndex < 0) return prev;
+
+      const newQty = (list[existingIndex].quantity || 1) + delta;
+      if (newQty <= 0) {
+        list.splice(existingIndex, 1);
+      } else {
+        list[existingIndex] = {
+          ...list[existingIndex],
+          quantity: newQty,
+        };
+      }
+      return { ...prev, [restaurantId]: list };
+    });
+  };
+
+  const handleChangeMealCourse = (dishId: string, newCourse: MealCourseType, restaurantId: string = activeRestaurantId) => {
+    setComposedMeals((prev) => {
+      const list = prev[restaurantId] ? [...prev[restaurantId]] : [];
+      const existingIndex = list.findIndex((i) => i.dish.id === dishId);
+      if (existingIndex < 0) return prev;
+      list[existingIndex] = { ...list[existingIndex], course: newCourse };
+      return { ...prev, [restaurantId]: list };
+    });
+  };
+
+  const handleClearMeal = (restaurantId: string = activeRestaurantId) => {
+    setComposedMeals((prev) => ({
+      ...prev,
+      [restaurantId]: [],
+    }));
+    showToast('Repas idéal réinitialisé.');
+  };
 
   // Gentle notification if saved dietary profile pre-applied on load
   useEffect(() => {
@@ -655,6 +747,32 @@ export default function App() {
     showToast(`Établissement « ${updatedRestaurant.name} » mis à jour avec succès ! ✨`);
   };
 
+  const handleUpdateRestaurantLinks = (
+    socialLinks: RestaurantSocialLinks,
+    externalLinks: RestaurantExternalLinks,
+    targetRestaurantId?: string
+  ) => {
+    const targetId = targetRestaurantId || activeRestaurantId;
+    setRestaurants((prev) =>
+      prev.map((r) => {
+        if (r.id === targetId) {
+          return {
+            ...r,
+            socialLinks,
+            externalLinks,
+            customization: {
+              ...(r.customization || {}),
+              socialLinks,
+              externalLinks,
+            },
+          };
+        }
+        return r;
+      })
+    );
+    showToast(`Présence en ligne et liens de commande mis à jour ! 🌐`);
+  };
+
   const handleEditRestaurantMenu = (restaurantId: string) => {
     setActiveRestaurantId(restaurantId);
     setIsAdmin(true);
@@ -870,40 +988,42 @@ export default function App() {
   return (
     <div className="min-h-full font-sans antialiased text-stone-900 paper-texture selection:bg-[#99281a] selection:text-white relative">
       {/* FLOATING TOP NAVBAR (GUSTO MODERN LUXURY) */}
-      <PortalHeader
-        currentLang={currentLang}
-        onLanguageChange={setCurrentLang}
-        userCoords={userCoords}
-        onRequestGeolocation={handleRequestGeolocation}
-        isAdmin={isAdmin}
-        onOpenAdminModal={() => setIsAdminModalOpen(true)}
-        onOpenCreatorDashboard={handleOpenCreatorDashboard}
-        onOpenRegistrationModal={() => setIsRegistrationModalOpen(true)}
-        onOpenMap={() => handleOpenMap()}
-        isMapActive={portalDisplayMode === 'map' && currentView === 'portal'}
-        currentView={currentView}
-        onNavigatePortal={handleBackToPortal}
-        onNavigateRestaurant={() => handleOpenRestaurant(activeRestaurantId)}
-        onOpenAllergenModal={() => setIsAllergenModalOpen(true)}
-        activeAllergensCount={selectedAllergensFilter.length}
-        activeRestaurantName={activeRestaurant?.name}
-        pendingRegistrationsCount={pendingRegistrationsCount}
-        restaurantsCount={restaurants.length}
-        onOpenDietaryProfile={() => setIsDietaryProfileModalOpen(true)}
-        hasSavedDietaryProfile={hasSavedProfile}
-        onScrollToNutrition={() => {
-          if (currentView !== 'portal') {
-            setCurrentView('portal');
-          }
-          setTimeout(() => {
-            const el = document.getElementById('nutrition-section');
-            if (el) {
-              el.scrollIntoView({ behavior: 'smooth' });
+      {currentView !== 'restaurant' && (
+        <PortalHeader
+          currentLang={currentLang}
+          onLanguageChange={setCurrentLang}
+          userCoords={userCoords}
+          onRequestGeolocation={handleRequestGeolocation}
+          isAdmin={isAdmin}
+          onOpenAdminModal={() => setIsAdminModalOpen(true)}
+          onOpenCreatorDashboard={handleOpenCreatorDashboard}
+          onOpenRegistrationModal={() => setIsRegistrationModalOpen(true)}
+          onOpenMap={() => handleOpenMap()}
+          isMapActive={portalDisplayMode === 'map' && currentView === 'portal'}
+          currentView={currentView}
+          onNavigatePortal={handleBackToPortal}
+          onNavigateRestaurant={() => handleOpenRestaurant(activeRestaurantId)}
+          onOpenAllergenModal={() => setIsAllergenModalOpen(true)}
+          activeAllergensCount={selectedAllergensFilter.length}
+          activeRestaurantName={activeRestaurant?.name}
+          pendingRegistrationsCount={pendingRegistrationsCount}
+          restaurantsCount={restaurants.length}
+          onOpenDietaryProfile={() => setIsDietaryProfileModalOpen(true)}
+          hasSavedDietaryProfile={hasSavedProfile}
+          onScrollToNutrition={() => {
+            if (currentView !== 'portal') {
+              setCurrentView('portal');
             }
-          }, 100);
-        }}
-        onLogoutAdmin={handleAdminLogout}
-      />
+            setTimeout(() => {
+              const el = document.getElementById('nutrition-section');
+              if (el) {
+                el.scrollIntoView({ behavior: 'smooth' });
+              }
+            }, 100);
+          }}
+          onLogoutAdmin={handleAdminLogout}
+        />
+      )}
 
       {/* VIEW 1: PORTAL HUB */}
       {currentView === 'portal' && (
@@ -931,9 +1051,6 @@ export default function App() {
 
           {/* Directory section */}
           <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-10 grow">
-            {/* PWA 1-CLICK MOBILE INSTALL BANNER */}
-            <PWAInstallButton variant="banner" onShowToast={showToast} />
-
             {/* SECTION 1: NOUVEAUX RESTAURANTS (3 DERNIERS AJOUTS) */}
             {filteredLatestRestaurants.length > 0 && (
               <section
@@ -1231,7 +1348,7 @@ export default function App() {
 
       {/* VIEW 2: INDIVIDUAL RESTAURANT MENU */}
       {currentView === 'restaurant' && (
-        <div className="pt-16 sm:pt-20">
+        <div className="pt-0">
           <RestaurantView
             restaurant={activeRestaurant}
             currentLang={currentLang}
@@ -1256,6 +1373,15 @@ export default function App() {
             onToggleDishOfTheMoment={handleToggleDishOfTheMoment}
             onShowToast={showToast}
             onUpdateRestaurant={handleUpdateRestaurant}
+            composedMeal={activeComposedMeal}
+            onAddToMeal={(d, c) => handleAddToMeal(d, activeRestaurant.id, c)}
+            onRemoveFromMeal={(dishId) => handleRemoveFromMeal(dishId, activeRestaurant.id)}
+            onUpdateMealQuantity={(dishId, delta) => handleUpdateMealQuantity(dishId, delta, activeRestaurant.id)}
+            onChangeMealCourse={(dishId, course) => handleChangeMealCourse(dishId, course, activeRestaurant.id)}
+            onClearMeal={() => handleClearMeal(activeRestaurant.id)}
+            isMealComposerOpen={isMealComposerOpen}
+            onOpenMealComposer={() => setIsMealComposerOpen(true)}
+            onCloseMealComposer={() => setIsMealComposerOpen(false)}
           />
         </div>
       )}
@@ -1293,6 +1419,21 @@ export default function App() {
         onUpdateDish={handleUpdateDish}
         onShowToast={showToast}
         onToggleDishOfTheMoment={handleToggleDishOfTheMoment}
+      />
+
+      <MealComposerModal
+        isOpen={isMealComposerOpen}
+        onClose={() => setIsMealComposerOpen(false)}
+        restaurant={activeRestaurant}
+        currentLang={currentLang}
+        items={activeComposedMeal}
+        onAddItem={(d, c) => handleAddToMeal(d, activeRestaurant.id, c)}
+        onRemoveItem={(dishId) => handleRemoveFromMeal(dishId, activeRestaurant.id)}
+        onUpdateQuantity={(dishId, delta) => handleUpdateMealQuantity(dishId, delta, activeRestaurant.id)}
+        onChangeCourse={(dishId, course) => handleChangeMealCourse(dishId, course, activeRestaurant.id)}
+        onClearMeal={() => handleClearMeal(activeRestaurant.id)}
+        onOpenDishDetail={(d) => handleOpenDishDetail(d, activeRestaurant)}
+        onShowToast={showToast}
       />
 
       <AllergenFilterModal
@@ -1349,6 +1490,8 @@ export default function App() {
         onClearInitialEditingDish={() => setEditingDishForAdmin(null)}
         onOpenCreatorDashboard={handleOpenCreatorDashboard}
         onToggleDishOfTheMoment={handleToggleDishOfTheMoment}
+        onUpdateRestaurant={handleUpdateRestaurant}
+        onUpdateLinks={handleUpdateRestaurantLinks}
       />
 
       {/* RESTAURANT REGISTRATION MODAL */}
@@ -1365,7 +1508,7 @@ export default function App() {
       {/* TOAST FEEDBACK */}
       <Toast visible={toast.visible} message={toast.message} />
 
-      {/* PWA OFFLINE CONNECTIVITY INDICATOR */}
+      {/* OFFLINE CONNECTIVITY INDICATOR */}
       <OfflineIndicator />
     </div>
   );

@@ -3,15 +3,22 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './styles/fonts.css';
 import './index.css';
-import { registerSW } from 'virtual:pwa-register';
 
-// Register PWA service worker with auto-update for offline capabilities
-registerSW({
-  immediate: true,
-  onOfflineReady() {
-    console.log('Gusto PWA : prêt pour le mode hors-ligne.');
-  },
-});
+// Ensure browser does not show PWA installation prompt for the web version
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+  });
+
+  // Clean up any previously registered service workers
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then((registrations) => {
+      for (const registration of registrations) {
+        registration.unregister().catch(() => {});
+      }
+    });
+  }
+}
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

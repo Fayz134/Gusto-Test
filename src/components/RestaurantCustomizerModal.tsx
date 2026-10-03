@@ -15,8 +15,14 @@ import {
   Eye,
   Sliders,
   Store,
+  Share2,
+  Globe,
+  Instagram,
+  Facebook,
+  Link as LinkIcon,
+  ExternalLink,
 } from 'lucide-react';
-import { Restaurant, RestaurantCustomization } from '../types';
+import { Restaurant, RestaurantCustomization, RestaurantSocialLinks } from '../types';
 import { processImageFile } from '../utils/imageUpload';
 
 interface RestaurantCustomizerModalProps {
@@ -143,7 +149,20 @@ export const RestaurantCustomizerModal: React.FC<RestaurantCustomizerModalProps>
     showHoursBadge: true,
   };
 
-  const [activeTab, setActiveTab] = useState<'theme' | 'banner' | 'info' | 'announcement'>('theme');
+  const [activeTab, setActiveTab] = useState<'theme' | 'banner' | 'info' | 'announcement' | 'social'>('theme');
+
+  // Social & ordering links state
+  const [socialLinks, setSocialLinks] = useState<RestaurantSocialLinks>(() => ({
+    website: restaurant.externalLinks?.website || restaurant.socialLinks?.website || '',
+    uberEats: restaurant.externalLinks?.uberEats || restaurant.socialLinks?.uberEats || '',
+    deliveroo: restaurant.externalLinks?.deliveroo || restaurant.socialLinks?.deliveroo || '',
+    instagram: restaurant.socialLinks?.instagram || '',
+    facebook: restaurant.socialLinks?.facebook || '',
+    tiktok: restaurant.socialLinks?.tiktok || '',
+    googleMaps: restaurant.externalLinks?.googleMaps || restaurant.socialLinks?.googleMaps || '',
+    customLabel: restaurant.externalLinks?.customLabel || restaurant.socialLinks?.customLabel || '',
+    customUrl: restaurant.externalLinks?.customUrl || restaurant.socialLinks?.customUrl || '',
+  }));
 
   // Basic restaurant fields
   const [name, setName] = useState(restaurant.name);
@@ -270,6 +289,26 @@ export const RestaurantCustomizerModal: React.FC<RestaurantCustomizerModalProps>
         lunch: lunch.trim() || restaurant.openingHours.lunch,
         dinner: dinner.trim() || restaurant.openingHours.dinner,
         isOpenNow,
+      },
+      socialLinks: {
+        instagram: socialLinks.instagram?.trim() || undefined,
+        facebook: socialLinks.facebook?.trim() || undefined,
+        tiktok: socialLinks.tiktok?.trim() || undefined,
+        // Compatibility
+        website: socialLinks.website?.trim() || undefined,
+        uberEats: socialLinks.uberEats?.trim() || undefined,
+        deliveroo: socialLinks.deliveroo?.trim() || undefined,
+        googleMaps: socialLinks.googleMaps?.trim() || undefined,
+        customLabel: socialLinks.customLabel?.trim() || undefined,
+        customUrl: socialLinks.customUrl?.trim() || undefined,
+      },
+      externalLinks: {
+        website: socialLinks.website?.trim() || undefined,
+        uberEats: socialLinks.uberEats?.trim() || undefined,
+        deliveroo: socialLinks.deliveroo?.trim() || undefined,
+        googleMaps: socialLinks.googleMaps?.trim() || undefined,
+        customLabel: socialLinks.customLabel?.trim() || undefined,
+        customUrl: socialLinks.customUrl?.trim() || undefined,
       },
       customization: updatedCustomization,
     };
@@ -429,6 +468,17 @@ export const RestaurantCustomizerModal: React.FC<RestaurantCustomizerModalProps>
           >
             <Megaphone className="w-3.5 h-3.5" />
             <span>Annonce & Visibilité</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('social')}
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition cursor-pointer ${
+              activeTab === 'social'
+                ? 'border-stone-900 text-stone-900'
+                : 'border-transparent text-stone-500 hover:text-stone-800'
+            }`}
+          >
+            <Share2 className="w-3.5 h-3.5" />
+            <span>Réseaux & Commandes</span>
           </button>
         </div>
 
@@ -1186,6 +1236,195 @@ export const RestaurantCustomizerModal: React.FC<RestaurantCustomizerModalProps>
                       checked={showHoursBadge}
                       onChange={(e) => setShowHoursBadge(e.target.checked)}
                       className="w-4 h-4 rounded text-stone-900 cursor-pointer"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 5: RESEAUX SOCIAUX & COMMANDES EN LIGNE */}
+          {activeTab === 'social' && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-sm font-bold text-stone-900 mb-1 flex items-center gap-1.5">
+                  <Share2 className="w-4 h-4 text-amber-600" />
+                  <span>Plateformes de commande & Réseaux sociaux</span>
+                </h3>
+                <p className="text-xs text-stone-500 mb-4">
+                  Renseignez vos liens officiels pour permettre aux clients de commander en ligne ou de suivre vos actualités.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                {/* Uber Eats */}
+                <div className="p-3.5 rounded-xl border border-stone-200 bg-stone-50/50">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold text-stone-800 flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-md bg-emerald-600 text-white font-mono text-[10px] font-black">
+                        UBER EATS
+                      </span>
+                      <span>Lien Uber Eats</span>
+                    </label>
+                    {socialLinks.uberEats && (
+                      <a
+                        href={socialLinks.uberEats}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] text-emerald-700 hover:underline flex items-center gap-1"
+                      >
+                        <span>Tester</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    value={socialLinks.uberEats || ''}
+                    onChange={(e) => setSocialLinks((prev) => ({ ...prev, uberEats: e.target.value }))}
+                    placeholder="https://www.ubereats.com/fr/store/..."
+                    className="w-full text-xs font-mono bg-white border border-stone-300 rounded-lg px-3 py-2 text-stone-800 focus:outline-none focus:border-emerald-600"
+                  />
+                </div>
+
+                {/* Deliveroo */}
+                <div className="p-3.5 rounded-xl border border-stone-200 bg-stone-50/50">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold text-stone-800 flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-md bg-[#00cdbc] text-stone-950 font-mono text-[10px] font-black">
+                        DELIVEROO
+                      </span>
+                      <span>Lien Deliveroo</span>
+                    </label>
+                    {socialLinks.deliveroo && (
+                      <a
+                        href={socialLinks.deliveroo}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] text-cyan-700 hover:underline flex items-center gap-1"
+                      >
+                        <span>Tester</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    value={socialLinks.deliveroo || ''}
+                    onChange={(e) => setSocialLinks((prev) => ({ ...prev, deliveroo: e.target.value }))}
+                    placeholder="https://deliveroo.fr/fr/menu/..."
+                    className="w-full text-xs font-mono bg-white border border-stone-300 rounded-lg px-3 py-2 text-stone-800 focus:outline-none focus:border-cyan-600"
+                  />
+                </div>
+
+                {/* Site Web */}
+                <div className="p-3.5 rounded-xl border border-stone-200 bg-stone-50/50">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold text-stone-800 flex items-center gap-2">
+                      <Globe className="w-4 h-4 text-stone-700" />
+                      <span>Site Web officiel</span>
+                    </label>
+                    {socialLinks.website && (
+                      <a
+                        href={socialLinks.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] text-amber-700 hover:underline flex items-center gap-1"
+                      >
+                        <span>Tester</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    value={socialLinks.website || ''}
+                    onChange={(e) => setSocialLinks((prev) => ({ ...prev, website: e.target.value }))}
+                    placeholder="https://mon-restaurant.fr"
+                    className="w-full text-xs font-mono bg-white border border-stone-300 rounded-lg px-3 py-2 text-stone-800 focus:outline-none focus:border-amber-600"
+                  />
+                </div>
+
+                {/* Instagram */}
+                <div className="p-3.5 rounded-xl border border-stone-200 bg-stone-50/50">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold text-stone-800 flex items-center gap-2">
+                      <Instagram className="w-4 h-4 text-rose-600" />
+                      <span>Instagram</span>
+                    </label>
+                    {socialLinks.instagram && (
+                      <a
+                        href={socialLinks.instagram}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] text-rose-700 hover:underline flex items-center gap-1"
+                      >
+                        <span>Tester</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    value={socialLinks.instagram || ''}
+                    onChange={(e) => setSocialLinks((prev) => ({ ...prev, instagram: e.target.value }))}
+                    placeholder="https://www.instagram.com/..."
+                    className="w-full text-xs font-mono bg-white border border-stone-300 rounded-lg px-3 py-2 text-stone-800 focus:outline-none focus:border-rose-500"
+                  />
+                </div>
+
+                {/* Facebook */}
+                <div className="p-3.5 rounded-xl border border-stone-200 bg-stone-50/50">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold text-stone-800 flex items-center gap-2">
+                      <Facebook className="w-4 h-4 text-blue-600" />
+                      <span>Facebook</span>
+                    </label>
+                  </div>
+                  <input
+                    type="text"
+                    value={socialLinks.facebook || ''}
+                    onChange={(e) => setSocialLinks((prev) => ({ ...prev, facebook: e.target.value }))}
+                    placeholder="https://www.facebook.com/..."
+                    className="w-full text-xs font-mono bg-white border border-stone-300 rounded-lg px-3 py-2 text-stone-800 focus:outline-none focus:border-blue-600"
+                  />
+                </div>
+
+                {/* Google Maps */}
+                <div className="p-3.5 rounded-xl border border-stone-200 bg-stone-50/50">
+                  <label className="text-xs font-bold text-stone-800 flex items-center gap-2 mb-1.5">
+                    <MapPin className="w-4 h-4 text-red-600" />
+                    <span>Lien Fiche Google Maps & Avis</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={socialLinks.googleMaps || ''}
+                    onChange={(e) => setSocialLinks((prev) => ({ ...prev, googleMaps: e.target.value }))}
+                    placeholder="https://maps.google.com/?q=..."
+                    className="w-full text-xs font-mono bg-white border border-stone-300 rounded-lg px-3 py-2 text-stone-800 focus:outline-none focus:border-red-600"
+                  />
+                </div>
+
+                {/* Lien personnalisé */}
+                <div className="p-3.5 rounded-xl border border-stone-200 bg-stone-50/50 space-y-2">
+                  <label className="text-xs font-bold text-stone-800 flex items-center gap-2">
+                    <LinkIcon className="w-4 h-4 text-stone-600" />
+                    <span>Lien personnalisé supplémentaire (TheFork, Réservation...)</span>
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={socialLinks.customLabel || ''}
+                      onChange={(e) => setSocialLinks((prev) => ({ ...prev, customLabel: e.target.value }))}
+                      placeholder="Texte (ex: Réserver sur TheFork)"
+                      className="w-full text-xs bg-white border border-stone-300 rounded-lg px-3 py-1.5 text-stone-800 focus:outline-none focus:border-stone-500"
+                    />
+                    <input
+                      type="text"
+                      value={socialLinks.customUrl || ''}
+                      onChange={(e) => setSocialLinks((prev) => ({ ...prev, customUrl: e.target.value }))}
+                      placeholder="https://..."
+                      className="w-full text-xs font-mono bg-white border border-stone-300 rounded-lg px-3 py-1.5 text-stone-800 focus:outline-none focus:border-stone-500"
                     />
                   </div>
                 </div>

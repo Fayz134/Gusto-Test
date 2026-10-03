@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { X, Zap, Maximize2, Pencil, Camera, Star } from 'lucide-react';
+import { X, Zap, Maximize2, Pencil, Camera, Star, Sparkles } from 'lucide-react';
 import { Dish, Restaurant, Language } from '../types';
 import { I18N_DICT, ALLERGENS_MASTER_LIST } from '../data/i18n';
 import { formatPrice } from '../utils/geo';
@@ -162,10 +162,10 @@ export const DishDetailModal: React.FC<DishDetailModalProps> = ({
               {isAdmin && onUpdateDish && (
                 <label
                   className="bg-stone-900/85 hover:bg-stone-900 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md inline-flex items-center gap-1.5 transition cursor-pointer border border-white/20 active:scale-95 backdrop-blur-xs"
-                  title="Changer la photo manuellement"
+                  title={t('changePhoto')}
                 >
                   <Camera className="w-3.5 h-3.5 text-amber-300" />
-                  <span>Changer photo</span>
+                  <span>{t('changePhoto')}</span>
                   <input
                     type="file"
                     accept="image/*"
@@ -180,18 +180,18 @@ export const DishDetailModal: React.FC<DishDetailModalProps> = ({
             <button
               type="button"
               onClick={() => setIsFullscreenPhoto(true)}
-              title="Voir la photo en entier (plein écran)"
+              title={t('fullscreen')}
               className="absolute top-4 right-4 z-20 px-2.5 py-1 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md text-white text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-md cursor-pointer active:scale-95"
             >
               <Maximize2 className="w-3.5 h-3.5" />
-              <span>Plein écran</span>
+              <span>{t('fullscreen')}</span>
             </button>
 
             {/* Wine Pairing Tooltip */}
             {showWineDetails && dish.winePairing && (
               <div className="absolute bottom-16 left-4 right-4 max-w-xs bg-stone-950/95 backdrop-blur-md text-stone-100 p-3 rounded-2xl border border-amber-400/40 shadow-2xl z-30 animate-in fade-in slide-in-from-bottom-2 duration-200">
                 <span className="text-amber-400 font-bold block mb-0.5 uppercase tracking-wider text-[10px]">
-                  Accord conseillé :
+                  {t('sommelierPairing')}
                 </span>
                 <span className="font-serif italic font-medium text-amber-100 text-xs leading-relaxed">
                   {dish.winePairing}
@@ -207,7 +207,7 @@ export const DishDetailModal: React.FC<DishDetailModalProps> = ({
                 className="bg-stone-900/90 hover:bg-black text-amber-300 px-3 py-1.5 rounded-full border border-white/15 font-bold uppercase text-[11px] tracking-wider flex items-center gap-1.5 shadow-lg transition-colors cursor-pointer active:scale-95"
               >
                 <span className="text-xs">🍷</span>
-                <span>SUGGESTION BOISSON</span>
+                <span>{t('drinkSuggestion')}</span>
               </button>
             </div>
           </div>
@@ -372,14 +372,14 @@ export const DishDetailModal: React.FC<DishDetailModalProps> = ({
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <div className="flex items-center gap-1 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-stone-500">
                     <Zap className="w-3 h-3 text-[#ea580c] fill-[#ea580c]" />
-                    <span>PROFIL NUTRITIONNEL</span>
+                    <span>{t('nutritionFactsTitle')}</span>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-4 gap-1.5 text-center">
                   <div className="bg-[#f8fafc] border border-stone-200/80 rounded-xl p-1 sm:p-1.5">
                     <span className="text-[8px] sm:text-[9px] uppercase font-bold tracking-wider text-stone-400 block truncate">
-                      CALORIES
+                      {t('calories')}
                     </span>
                     <span className="text-xs sm:text-sm font-bold text-stone-900 font-sans">
                       {dish.nutrition.kcal} <span className="text-[8px] sm:text-[9px] font-normal text-stone-500">kcal</span>
@@ -388,7 +388,7 @@ export const DishDetailModal: React.FC<DishDetailModalProps> = ({
 
                   <div className="bg-[#f8fafc] border border-stone-200/80 rounded-xl p-1 sm:p-1.5">
                     <span className="text-[8px] sm:text-[9px] uppercase font-bold tracking-wider text-stone-400 block truncate">
-                      PROTÉINES
+                      {t('proteins')}
                     </span>
                     <span className="text-xs sm:text-sm font-bold text-stone-900 font-sans">
                       {dish.nutrition.protein}g
@@ -397,7 +397,7 @@ export const DishDetailModal: React.FC<DishDetailModalProps> = ({
 
                   <div className="bg-[#f8fafc] border border-stone-200/80 rounded-xl p-1 sm:p-1.5">
                     <span className="text-[8px] sm:text-[9px] uppercase font-bold tracking-wider text-stone-400 block truncate">
-                      GLUCIDES
+                      {t('carbs')}
                     </span>
                     <span className="text-xs sm:text-sm font-bold text-stone-900 font-sans">
                       {dish.nutrition.carbs}g
@@ -406,7 +406,7 @@ export const DishDetailModal: React.FC<DishDetailModalProps> = ({
 
                   <div className="bg-[#f8fafc] border border-stone-200/80 rounded-xl p-1 sm:p-1.5">
                     <span className="text-[8px] sm:text-[9px] uppercase font-bold tracking-wider text-stone-400 block truncate">
-                      LIPIDES
+                      {t('fats')}
                     </span>
                     <span className="text-xs sm:text-sm font-bold text-stone-900 font-sans">
                       {dish.nutrition.fat}g
@@ -419,7 +419,7 @@ export const DishDetailModal: React.FC<DishDetailModalProps> = ({
               <div>
                 <div className="flex items-center gap-1 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-stone-500 mb-1">
                   <span className="text-sky-500 text-xs">⚠️</span>
-                  <span>ALLERGÈNES PRÉSENTS</span>
+                  <span>{t('allergensDetected')}</span>
                 </div>
 
                 <div className="flex flex-wrap gap-1 sm:gap-1.5">
@@ -456,7 +456,7 @@ export const DishDetailModal: React.FC<DishDetailModalProps> = ({
                   <span className="text-sm shrink-0">🍷</span>
                   <div className="text-[11px] sm:text-xs min-w-0 truncate">
                     <span className="font-bold text-amber-950 uppercase tracking-wider text-[9px] mr-1">
-                      Accord conseillé :
+                      {t('sommelierPairing')}
                     </span>
                     <span className="text-amber-900 font-serif italic">
                       {dish.winePairing}
@@ -476,7 +476,7 @@ export const DishDetailModal: React.FC<DishDetailModalProps> = ({
                   {formatPrice(dish.price)}
                 </span>
                 <span className="text-[9px] sm:text-[10px] text-stone-400 font-sans mt-0.5">
-                  {dish.portion || 'Portion standard'}
+                  {dish.portion || t('standardPortion')}
                 </span>
               </div>
 
@@ -490,20 +490,20 @@ export const DishDetailModal: React.FC<DishDetailModalProps> = ({
                       onEditDish(dish);
                     }}
                     className="px-3.5 py-2.5 sm:py-3 rounded-2xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shrink-0"
-                    title="Modifier dans l'espace privé"
+                    title={t('edit')}
                   >
                     <Pencil className="w-3.5 h-3.5 text-amber-700" />
-                    <span>Modifier</span>
+                    <span>{t('edit')}</span>
                   </button>
                 )}
 
                 {isAdmin && onUpdateDish && dish && (
                   <label
                     className="px-3.5 py-2.5 sm:py-3 rounded-2xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shrink-0"
-                    title="Changer la photo manuellement"
+                    title={t('changePhoto')}
                   >
                     <Camera className="w-3.5 h-3.5 text-amber-700" />
-                    <span className="hidden sm:inline">Photo</span>
+                    <span className="hidden sm:inline">{t('changePhoto')}</span>
                     <input
                       type="file"
                       accept="image/*"
@@ -518,7 +518,7 @@ export const DishDetailModal: React.FC<DishDetailModalProps> = ({
                   onClick={onClose}
                   className="px-5 sm:px-6 py-2.5 sm:py-3 rounded-2xl bg-stone-900 hover:bg-stone-800 active:bg-stone-950 text-white font-bold text-xs sm:text-sm tracking-wider uppercase transition-colors cursor-pointer touch-manipulation shrink-0 shadow-xs"
                 >
-                  FERMER
+                  {t('close')}
                 </button>
               </div>
             </div>
